@@ -800,9 +800,7 @@ app.post('/api/plaid/sync-transactions', authenticateToken, async (req, res) => 
         const transactionsResponse = await plaidClient.transactionsGet({
           access_token: access_token,
           start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0],
-          count: 500,
-          offset: 0
+          end_date: endDate.toISOString().split('T')[0]
         });
 
         const transactions = transactionsResponse.data.transactions;
@@ -961,71 +959,58 @@ app.post('/api/plaid/sync-all-transactions', authenticateToken, async (req, res)
       try {
         console.log(`Processing ${cards.length} accounts for access token`);
         
-        // Fetch all transactions in batches (Plaid API has pagination)
-        let offset = 0;
-        const batchSize = 500;
-        let hasMore = true;
+        // Fetch all transactions
+        const transactionsResponse = await plaidClient.transactionsGet({
+          access_token: access_token,
+          start_date: startDateStr,
+          end_date: endDateStr
+        });
+
+        const transactions = transactionsResponse.data.transactions;
         
-        while (hasMore) {
-          const transactionsResponse = await plaidClient.transactionsGet({
-            access_token: access_token,
-            start_date: startDateStr,
-            end_date: endDateStr,
-            count: batchSize,
-            offset: offset
+        console.log(`Retrieved ${transactions.length} transactions from Plaid`);
+
+        // Process each transaction
+        for (const transaction of transactions) {
+          const matchingCard = cards.find(card => card.plaid_id === transaction.account_id);
+          if (!matchingCard) continue;
+
+          // Check if transaction already exists using Plaid transaction ID
+          const existingTransaction = await new Promise((resolve, reject) => {
+            db.get(
+              'SELECT id FROM transactions WHERE plaid_transaction_id = ?',
+              [transaction.transaction_id],
+              (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+              }
+            );
           });
 
-          const transactions = transactionsResponse.data.transactions;
-          const totalTransactions = transactionsResponse.data.total_transactions;
-          
-          console.log(`Retrieved ${transactions.length} transactions (${offset + 1}-${offset + transactions.length} of ${totalTransactions})`);
-
-          // Process each transaction
-          for (const transaction of transactions) {
-            const matchingCard = cards.find(card => card.plaid_id === transaction.account_id);
-            if (!matchingCard) continue;
-
-            // Check if transaction already exists using Plaid transaction ID
-            const existingTransaction = await new Promise((resolve, reject) => {
-              db.get(
-                'SELECT id FROM transactions WHERE plaid_transaction_id = ?',
-                [transaction.transaction_id],
-                (err, row) => {
+          // Only insert if transaction doesn't exist
+          if (!existingTransaction) {
+            await new Promise((resolve, reject) => {
+              db.run(
+                'INSERT INTO transactions (user_id, card_id, amount, description, category, date, source, plaid_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                  req.user.userId,
+                  matchingCard.id,
+                  -transaction.amount, // Plaid uses positive for outgoing, we use negative
+                  transaction.name,
+                  transaction.category?.[0] || 'Other',
+                  transaction.date,
+                  'plaid',
+                  transaction.transaction_id
+                ],
+                function(err) {
                   if (err) reject(err);
-                  else resolve(row);
+                  else resolve();
                 }
               );
             });
-
-            // Only insert if transaction doesn't exist
-            if (!existingTransaction) {
-              await new Promise((resolve, reject) => {
-                db.run(
-                  'INSERT INTO transactions (user_id, card_id, amount, description, category, date, source, plaid_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                  [
-                    req.user.userId,
-                    matchingCard.id,
-                    -transaction.amount, // Plaid uses positive for outgoing, we use negative
-                    transaction.name,
-                    transaction.category?.[0] || 'Other',
-                    transaction.date,
-                    'plaid',
-                    transaction.transaction_id
-                  ],
-                  function(err) {
-                    if (err) reject(err);
-                    else resolve();
-                  }
-                );
-              });
-              newTransactions++;
-            }
-            totalSynced++;
+            newTransactions++;
           }
-
-          // Check if there are more transactions to fetch
-          offset += batchSize;
-          hasMore = offset < totalTransactions;
+          totalSynced++;
         }
 
         // Update account balances

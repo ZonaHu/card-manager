@@ -5,10 +5,11 @@ interface RegionSelectorProps {
   token: string;
   onRegionSelected: (country: string, currency: string) => void;
   onClose: () => void;
+  currentRegion?: string;
 }
 
-const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected, onClose }) => {
-  const [selectedRegion, setSelectedRegion] = useState('US');
+const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected, onClose, currentRegion }) => {
+  const [selectedRegion, setSelectedRegion] = useState(currentRegion || 'US');
   const [loading, setLoading] = useState(false);
 
   const regions = [

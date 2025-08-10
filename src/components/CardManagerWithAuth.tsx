@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { CreditCard, Plus, DollarSign, TrendingUp, Calendar, Trash2, Edit3, ExternalLink, Zap, AlertCircle, LogOut, Sparkles, Globe } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { CreditCard, Plus, DollarSign, TrendingUp, Calendar, Trash2, Edit3, ExternalLink, Zap, AlertCircle, LogOut, Sparkles, Globe, Menu, X } from 'lucide-react';
 import PlaidLink from './PlaidLink';
 import RegionSelector from './RegionSelector';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
@@ -62,6 +62,9 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
   const [isNewUser, setIsNewUser] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [userRegion, setUserRegion] = useState({ country: 'US', currency: 'USD' });
+  const [showMenu, setShowMenu] = useState(false);
+  const [showAddCardOptions, setShowAddCardOptions] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const categories = ['Food & Dining', 'Shopping', 'Transportation', 'Bills & Utilities', 'Entertainment', 'Healthcare', 'Travel', 'Income', 'Other'];
 
@@ -145,6 +148,20 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
     loadData();
   }, []);
 
+  // Click outside handler for menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showMenu]);
+
   const handlePlaidSuccess = (newAccounts: Card[]) => {
     setCards(prevCards => [...prevCards, ...newAccounts]);
     setShowPlaidLink(false);
@@ -171,7 +188,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
     if (isNewUser || cards.length === 0) {
       setShowPlaidLink(true);
     } else {
-      setShowAddCard(true);
+      setShowAddCardOptions(true);
     }
   };
 
@@ -307,6 +324,44 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
     return { spending, income, byCategory, transactions: filtered };
   }, [transactions, currentMonth]);
 
+  // Group cards by category with color schemes
+  const groupedCards = useMemo(() => {
+    const filtered = cards.filter(card => categoryFilter === 'all' || card.category === categoryFilter);
+    
+    // Group by category
+    const grouped = filtered.reduce((acc, card) => {
+      const category = card.category || 'other';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(card);
+      return acc;
+    }, {} as Record<string, Card[]>);
+
+    // Define category order and color schemes
+    const categoryOrder = ['chequing', 'savings', 'credit', 'tfsa', 'rrsp', 'investment', 'mortgage', 'loan', 'other'];
+    const categoryColorSchemes = {
+      chequing: 'from-blue-50 to-blue-100 border-blue-200',
+      savings: 'from-green-50 to-green-100 border-green-200', 
+      credit: 'from-red-50 to-red-100 border-red-200',
+      tfsa: 'from-purple-50 to-purple-100 border-purple-200',
+      rrsp: 'from-indigo-50 to-indigo-100 border-indigo-200',
+      investment: 'from-orange-50 to-orange-100 border-orange-200',
+      mortgage: 'from-gray-50 to-gray-100 border-gray-200',
+      loan: 'from-yellow-50 to-yellow-100 border-yellow-200',
+      other: 'from-slate-50 to-slate-100 border-slate-200'
+    };
+
+    return categoryOrder
+      .filter(category => grouped[category] && grouped[category].length > 0)
+      .map(category => ({
+        category,
+        cards: grouped[category],
+        colorScheme: categoryColorSchemes[category as keyof typeof categoryColorSchemes],
+        info: cardCategories[category]
+      }));
+  }, [cards, categoryFilter, cardCategories]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -341,7 +396,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
             </h1>
             <p className="text-gray-600 mt-1">Welcome back, {user.name}!</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowRegionSelector(true)}
               className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-200 transition-colors"
@@ -350,48 +405,6 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
               <Globe size={16} />
               {userRegion.country === 'CA' ? '🇨🇦' : '🇺🇸'}
             </button>
-            {cards.some(card => card.connected) && (
-              <>
-                <button
-                  onClick={() => syncTransactions('recent')}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition-colors"
-                  disabled={loading}
-                  title="Sync recent transactions (30 days)"
-                >
-                  <Zap size={16} />
-                  {loading ? 'Syncing...' : 'Quick Sync'}
-                </button>
-                <button
-                  onClick={() => syncTransactions('all', 3)}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition-colors"
-                  disabled={loading}
-                  title="Sync all transaction history (3 months)"
-                >
-                  <TrendingUp size={16} />
-                  {loading ? 'Syncing...' : 'Full Sync'}
-                </button>
-              </>
-            )}
-            {cards.length > 0 && (
-              <button
-                onClick={recategorizeCards}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition-colors"
-                disabled={loading}
-                title="Re-categorize all cards using smart analysis"
-              >
-                <Edit3 size={16} />
-                {loading ? 'Updating...' : 'Smart Categories'}
-              </button>
-            )}
-            {cards.length > 0 && (
-              <button
-                onClick={() => setShowPlaidLink(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors"
-              >
-                <ExternalLink size={16} />
-                Connect Bank
-              </button>
-            )}
             <button
               onClick={handleAddCardClick}
               className={`${isNewUser ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg' : 'bg-indigo-600'} text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:shadow-md transition-all`}
@@ -399,20 +412,123 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
               {isNewUser ? <Sparkles size={16} /> : <Plus size={16} />}
               {isNewUser ? 'Get Started' : 'Add Card'}
             </button>
-            <button
-              onClick={() => setShowAddTransaction(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors"
-            >
-              <Plus size={16} />
-              Add Transaction
-            </button>
-            <button
-              onClick={onLogout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors"
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors"
+                title="Open menu"
+              >
+                {showMenu ? <X size={20} /> : <Menu size={20} />}
+              </button>
+              
+              {showMenu && (
+                <div className="absolute right-0 top-12 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-64 z-50">
+                  {/* Sync Options */}
+                  {cards.some(card => card.connected) && (
+                    <>
+                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                        Sync Options
+                      </div>
+                      <button
+                        onClick={() => {
+                          syncTransactions('recent');
+                          setShowMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                        disabled={loading}
+                      >
+                        <Zap size={16} className="text-purple-600" />
+                        <div>
+                          <div className="font-medium">{loading ? 'Syncing...' : 'Quick Sync'}</div>
+                          <div className="text-sm text-gray-500">Recent transactions (30 days)</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          syncTransactions('all', 3);
+                          setShowMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                        disabled={loading}
+                      >
+                        <TrendingUp size={16} className="text-indigo-600" />
+                        <div>
+                          <div className="font-medium">{loading ? 'Syncing...' : 'Full Sync'}</div>
+                          <div className="text-sm text-gray-500">All transaction history (3 months)</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Card Management */}
+                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 mt-2">
+                    Card Management
+                  </div>
+                  {cards.length > 0 && (
+                    <button
+                      onClick={() => {
+                        recategorizeCards();
+                        setShowMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                      disabled={loading}
+                    >
+                      <Edit3 size={16} className="text-emerald-600" />
+                      <div>
+                        <div className="font-medium">{loading ? 'Updating...' : 'Smart Categories'}</div>
+                        <div className="text-sm text-gray-500">Re-categorize all cards</div>
+                      </div>
+                    </button>
+                  )}
+                  {cards.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setShowPlaidLink(true);
+                        setShowMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                    >
+                      <ExternalLink size={16} className="text-blue-600" />
+                      <div>
+                        <div className="font-medium">Connect Bank</div>
+                        <div className="text-sm text-gray-500">Link more accounts</div>
+                      </div>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowAddTransaction(true);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <Plus size={16} className="text-green-600" />
+                    <div>
+                      <div className="font-medium">Add Transaction</div>
+                      <div className="text-sm text-gray-500">Record a manual transaction</div>
+                    </div>
+                  </button>
+                  
+                  {/* Account */}
+                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 mt-2">
+                    Account
+                  </div>
+                  <button
+                    onClick={() => {
+                      onLogout();
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <LogOut size={16} className="text-red-600" />
+                    <div>
+                      <div className="font-medium">Logout</div>
+                      <div className="text-sm text-gray-500">Sign out of your account</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -438,6 +554,38 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
             </div>
           </div>
         )}
+
+        {/* Financial Overview - Primary Focus */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200">
+            <div className="flex items-center gap-3 mb-2">
+              <TrendingUp className="text-green-600" size={24} />
+              <h3 className="text-lg font-semibold text-gray-900">Income</h3>
+            </div>
+            <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlyData.income, userRegion.currency)}</p>
+            <p className="text-sm text-gray-600 mt-1">This month</p>
+          </div>
+          
+          <div className="bg-gradient-to-r from-red-50 to-pink-50 p-6 rounded-xl border border-red-200">
+            <div className="flex items-center gap-3 mb-2">
+              <DollarSign className="text-red-600" size={24} />
+              <h3 className="text-lg font-semibold text-gray-900">Spending</h3>
+            </div>
+            <p className="text-3xl font-bold text-red-600">{formatCurrency(monthlyData.spending, userRegion.currency)}</p>
+            <p className="text-sm text-gray-600 mt-1">This month</p>
+          </div>
+          
+          <div className={`bg-gradient-to-r p-6 rounded-xl border ${monthlyData.income - monthlyData.spending >= 0 ? 'from-blue-50 to-indigo-50 border-blue-200' : 'from-orange-50 to-red-50 border-orange-200'}`}>
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar className={monthlyData.income - monthlyData.spending >= 0 ? 'text-blue-600' : 'text-orange-600'} size={24} />
+              <h3 className="text-lg font-semibold text-gray-900">Net</h3>
+            </div>
+            <p className={`text-3xl font-bold ${monthlyData.income - monthlyData.spending >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+              {formatCurrency(monthlyData.income - monthlyData.spending, userRegion.currency)}
+            </p>
+            <p className="text-sm text-gray-600 mt-1">This month</p>
+          </div>
+        </div>
 
         {/* Category Filter */}
         {cards.length > 0 && (
@@ -474,45 +622,84 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {cards
-            .filter(card => categoryFilter === 'all' || card.category === categoryFilter)
-            .map(card => {
-              const categoryInfo = card.categoryInfo || cardCategories[card.category || 'other'] || cardCategories.other;
-              
-              return (
-                <div key={card.id} className={`bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow ${card.connected ? 'border-l-4 border-green-500' : ''}`}>
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg">{categoryInfo.icon}</span>
-                        <span className={`text-xs px-2 py-1 rounded-full bg-${categoryInfo.color}-100 text-${categoryInfo.color}-800`}>
-                          {categoryInfo.label}
-                        </span>
-                        {card.connected && <Zap size={16} className="text-green-500" />}
-                      </div>
-                      <h3 className="font-semibold text-lg text-gray-900">
-                        {card.name}
-                      </h3>
-                      <p className="text-gray-500 capitalize">{card.type} •••• {card.last_four}</p>
-                      {card.connected && <p className="text-xs text-green-600 font-medium">Auto-synced</p>}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => deleteCard(card.id)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(Math.abs(card.balance), card.currency || userRegion.currency)}
-                    {card.type === 'credit' && card.balance < 0 && <span className="text-sm text-red-500 ml-1">debt</span>}
-                  </div>
+        {/* Grouped Cards by Category */}
+        <div className="space-y-8 mb-8">
+          {groupedCards.map(({ category, cards: categoryCards, colorScheme, info }) => (
+            <div key={category} className="space-y-4">
+              {/* Category Header */}
+              <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
+                <span className="text-2xl">{info?.icon || '📱'}</span>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 capitalize">
+                    {info?.label || category} 
+                    <span className="text-sm text-gray-500 font-normal ml-2">
+                      ({categoryCards.length} {categoryCards.length === 1 ? 'account' : 'accounts'})
+                    </span>
+                  </h2>
+                  {info?.description && (
+                    <p className="text-sm text-gray-600">{info.description}</p>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+              
+              {/* Cards in this Category */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {categoryCards.map(card => {
+                  const categoryInfo = card.categoryInfo || info || cardCategories.other;
+                  
+                  return (
+                    <div 
+                      key={card.id} 
+                      className={`bg-gradient-to-br ${colorScheme} rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-200 border ${card.connected ? 'ring-2 ring-green-400 ring-opacity-50' : ''}`}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">{categoryInfo.icon}</span>
+                            {card.connected && (
+                              <div className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded-full">
+                                <Zap size={12} className="text-green-600" />
+                                <span className="text-xs text-green-700 font-medium">Live</span>
+                              </div>
+                            )}
+                          </div>
+                          <h3 className="font-semibold text-lg text-gray-900">
+                            {card.name}
+                          </h3>
+                          <p className="text-gray-600 capitalize text-sm">{card.type} •••• {card.last_four}</p>
+                          {card.institution_name && (
+                            <p className="text-xs text-gray-500 mt-1">{card.institution_name}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => deleteCard(card.id)}
+                            className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {formatCurrency(Math.abs(card.balance), card.currency || userRegion.currency)}
+                        {card.type === 'credit' && card.balance < 0 && (
+                          <span className="text-sm text-red-600 ml-2 font-normal">debt</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          
+          {groupedCards.length === 0 && cards.length === 0 && !isNewUser && (
+            <div className="text-center py-12 text-gray-500">
+              <CreditCard size={48} className="mx-auto mb-4 text-gray-300" />
+              <p className="text-lg font-medium mb-2">No cards added yet</p>
+              <p className="text-sm">Click "Add Card" to get started</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -644,6 +831,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
             token={token}
             onRegionSelected={handleRegionSelected}
             onClose={() => setShowRegionSelector(false)}
+            currentRegion={userRegion.country}
           />
         )}
 
@@ -653,6 +841,20 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
             categories={categories}
             onSubmit={addTransaction}
             onCancel={() => setShowAddTransaction(false)}
+          />
+        )}
+
+        {showAddCardOptions && (
+          <AddCardOptions
+            onConnectBank={() => {
+              setShowAddCardOptions(false);
+              setShowPlaidLink(true);
+            }}
+            onAddManually={() => {
+              setShowAddCardOptions(false);
+              setShowAddCard(true);
+            }}
+            onClose={() => setShowAddCardOptions(false)}
           />
         )}
       </div>
@@ -831,6 +1033,62 @@ const TransactionForm: React.FC<{
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+const AddCardOptions: React.FC<{
+  onConnectBank: () => void;
+  onAddManually: () => void;
+  onClose: () => void;
+}> = ({ onConnectBank, onAddManually, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+        <h3 className="text-xl font-semibold mb-2 text-gray-900">Add Card or Account</h3>
+        <p className="text-gray-600 mb-6">Choose how you'd like to add your financial account</p>
+        
+        <div className="space-y-4">
+          {/* Connect Bank Option */}
+          <button
+            onClick={onConnectBank}
+            className="w-full p-4 border-2 border-blue-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                <ExternalLink className="text-blue-600" size={20} />
+              </div>
+              <div className="text-left">
+                <h4 className="font-semibold text-gray-900">Connect Bank Account</h4>
+                <p className="text-sm text-gray-600">Securely link your bank to import accounts and transactions automatically</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Add Manually Option */}
+          <button
+            onClick={onAddManually}
+            className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                <Plus className="text-gray-600" size={20} />
+              </div>
+              <div className="text-left">
+                <h4 className="font-semibold text-gray-900">Add Card Manually</h4>
+                <p className="text-sm text-gray-600">Enter card details manually for basic tracking</p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full mt-6 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
