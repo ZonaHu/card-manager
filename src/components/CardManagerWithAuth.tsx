@@ -264,6 +264,34 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
     }
   };
 
+  const recategorizeCards = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const result = await apiCall('/api/cards/recategorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Refresh data after re-categorization
+      await loadData();
+      
+      // Show success message with details
+      if (result.updatedCards > 0) {
+        setError(`✅ ${result.message} - ${result.updatedCards} cards re-categorized`);
+      } else {
+        setError(`✅ All cards are already correctly categorized`);
+      }
+      setTimeout(() => setError(''), 5000);
+      
+    } catch (err: any) {
+      setError(`Re-categorization failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const monthlyData = useMemo(() => {
     const filtered = transactions.filter(t => t.date.startsWith(currentMonth));
     const spending = filtered.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -343,6 +371,17 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
                   {loading ? 'Syncing...' : 'Full Sync'}
                 </button>
               </>
+            )}
+            {cards.length > 0 && (
+              <button
+                onClick={recategorizeCards}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition-colors"
+                disabled={loading}
+                title="Re-categorize all cards using smart analysis"
+              >
+                <Edit3 size={16} />
+                {loading ? 'Updating...' : 'Smart Categories'}
+              </button>
             )}
             {cards.length > 0 && (
               <button

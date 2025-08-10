@@ -81,8 +81,87 @@ const CARD_CATEGORIES = {
   }
 };
 
-// Function to categorize Plaid account types to our categories
-const categorizeAccount = (plaidType, plaidSubtype) => {
+// Smart categorization patterns for card names and institutions
+const CATEGORIZATION_PATTERNS = {
+  credit: [
+    // Credit card keywords
+    'credit card', 'credit', 'mastercard', 'visa', 'american express', 'amex', 
+    'discover', 'capital one', 'chase', 'citi', 'cibc visa', 'td visa', 'rbc visa',
+    'bmo mastercard', 'scotiabank visa', 'aeroplan', 'rewards', 'cashback',
+    'platinum', 'gold', 'black', 'infinite', 'world elite', 'signature'
+  ],
+  
+  chequing: [
+    // Chequing account keywords
+    'chequing', 'checking', 'current', 'everyday', 'daily', 'operating',
+    'primary', 'main account', 'transaction', 'debit', 'spending',
+    'plus account', 'advantage', 'premium chequing', 'performance chequing'
+  ],
+  
+  savings: [
+    // Savings account keywords
+    'savings', 'save', 'high interest', 'premium savings', 'esavings',
+    'money market', 'reserve', 'growth', 'accumulator', 'builder',
+    'momentum savings', 'high yield', 'interest plus'
+  ],
+  
+  tfsa: [
+    // Tax-Free Savings Account
+    'tfsa', 'tax-free savings', 'tax free savings', 'tfs account',
+    'tfsa savings', 'tfsa investment', 'tfsa high interest'
+  ],
+  
+  rrsp: [
+    // Registered Retirement Savings Plan
+    'rrsp', 'retirement savings', 'registered retirement', 'retirement plan',
+    'pension', 'retirement income', 'retirement investment'
+  ],
+  
+  investment: [
+    // Investment accounts
+    'investment', 'brokerage', 'trading', 'portfolio', 'mutual fund',
+    'etf', 'stocks', 'bonds', 'securities', 'wealth management',
+    'self-directed', 'margin', 'cash account', 'investorline', 'direct investing'
+  ],
+  
+  mortgage: [
+    // Mortgage accounts
+    'mortgage', 'home loan', 'property loan', 'real estate loan',
+    'housing loan', 'home equity', 'heloc', 'line of credit secured'
+  ],
+  
+  loan: [
+    // Personal loans and lines of credit
+    'personal loan', 'line of credit', 'loc', 'overdraft', 'student loan',
+    'auto loan', 'car loan', 'vehicle loan', 'unsecured loan', 'term loan',
+    'installment loan', 'personal line'
+  ]
+};
+
+// Enhanced smart categorization function
+const smartCategorizeAccount = (accountName, institutionName, plaidType, plaidSubtype) => {
+  // Combine all text for analysis
+  const fullText = [
+    accountName || '',
+    institutionName || '',
+    plaidSubtype || ''
+  ].join(' ').toLowerCase();
+  
+  // Check each category's patterns
+  for (const [category, patterns] of Object.entries(CATEGORIZATION_PATTERNS)) {
+    for (const pattern of patterns) {
+      if (fullText.includes(pattern.toLowerCase())) {
+        return category;
+      }
+    }
+  }
+  
+  // Fallback to original Plaid-based categorization
+  return categorizeAccountByPlaid(plaidType, plaidSubtype);
+};
+
+// Original Plaid-based categorization as fallback
+const categorizeAccountByPlaid = (plaidType, plaidSubtype) => {
   const type = plaidType?.toLowerCase();
   const subtype = plaidSubtype?.toLowerCase();
   
@@ -113,6 +192,11 @@ const categorizeAccount = (plaidType, plaidSubtype) => {
   
   // Default fallback
   return 'other';
+};
+
+// Legacy function name for backwards compatibility
+const categorizeAccount = (plaidType, plaidSubtype, accountName, institutionName) => {
+  return smartCategorizeAccount(accountName, institutionName, plaidType, plaidSubtype);
 };
 
 // Plaid configuration
@@ -567,17 +651,25 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
       });
     });
 
-    // Store accounts in database with automatic categorization
+    // Store accounts in database with smart categorization
     const insertPromises = accounts.map(account => {
       return new Promise((resolve, reject) => {
-        // Auto-categorize based on Plaid account type and subtype
-        const category = categorizeAccount(account.type, account.subtype);
+        // Create account name
+        const accountName = `${institution.name} ${account.subtype || account.type}`;
+        
+        // Smart categorization based on name, institution, and Plaid data
+        const category = smartCategorizeAccount(
+          accountName, 
+          institution.name, 
+          account.type, 
+          account.subtype
+        );
         
         db.run(
           'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id, category, institution_name, account_subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             req.user.userId,
-            `${institution.name} ${account.subtype || account.type}`,
+            accountName,
             account.type === 'credit' ? 'credit' : 'debit',
             account.mask || '0000',
             account.balances.current || 0,
@@ -1006,6 +1098,70 @@ app.get('/api/card-categories', (req, res) => {
   res.json(CARD_CATEGORIES);
 });
 
+// Re-categorize all existing cards using smart categorization
+app.post('/api/cards/recategorize', authenticateToken, async (req, res) => {
+  try {
+    console.log('Re-categorizing cards for user:', req.user.userId);
+    
+    // Get all cards for this user
+    const cards = await new Promise((resolve, reject) => {
+      db.all('SELECT * FROM cards WHERE user_id = ?', [req.user.userId], (err, cards) => {
+        if (err) reject(err);
+        else resolve(cards);
+      });
+    });
+
+    let updatedCount = 0;
+    const results = [];
+
+    // Re-categorize each card
+    for (const card of cards) {
+      const oldCategory = card.category;
+      const newCategory = smartCategorizeAccount(
+        card.name,
+        card.institution_name,
+        card.type,
+        card.account_subtype
+      );
+
+      if (oldCategory !== newCategory) {
+        await new Promise((resolve, reject) => {
+          db.run(
+            'UPDATE cards SET category = ? WHERE id = ?',
+            [newCategory, card.id],
+            function(err) {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+        updatedCount++;
+        results.push({
+          id: card.id,
+          name: card.name,
+          oldCategory,
+          newCategory,
+          categoryInfo: CARD_CATEGORIES[newCategory] || CARD_CATEGORIES.other
+        });
+      }
+    }
+
+    res.json({
+      message: 'Card re-categorization completed',
+      totalCards: cards.length,
+      updatedCards: updatedCount,
+      changes: results
+    });
+
+  } catch (error) {
+    console.error('Error re-categorizing cards:', error);
+    res.status(500).json({ 
+      error: 'Failed to re-categorize cards',
+      details: error.message
+    });
+  }
+});
+
 // Cards routes
 app.get('/api/cards', authenticateToken, (req, res) => {
   db.all('SELECT * FROM cards WHERE user_id = ?', [req.user.userId], (err, cards) => {
@@ -1030,8 +1186,14 @@ app.post('/api/cards', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
+  // Smart categorization if no category provided or if category is 'other'
+  let finalCategory = category;
+  if (!category || category === 'other') {
+    finalCategory = smartCategorizeAccount(name, '', '', '');
+  }
+  
   // Validate category
-  const validCategory = category && CARD_CATEGORIES[category] ? category : 'other';
+  const validCategory = finalCategory && CARD_CATEGORIES[finalCategory] ? finalCategory : 'other';
 
   db.run(
     'INSERT INTO cards (user_id, name, type, last_four, balance, currency, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
