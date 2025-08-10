@@ -4,21 +4,36 @@ A modern, secure personal finance application that connects to your bank account
 
 ## ✨ Features
 
-- **🏦 Bank Integration**: Connect multiple bank accounts securely via Plaid
-- **⚡ Transaction Sync**: Automatic and manual transaction synchronization
-- **📊 Analytics**: Monthly spending analysis and category breakdowns
-- **🔒 Secure Authentication**: JWT-based auth with Google OAuth support
-- **🌍 Multi-Currency**: Support for USD and CAD with regional settings
-- **📱 Responsive Design**: Beautiful, mobile-friendly interface
+- **🏦 Bank Integration**: Connect multiple bank accounts securely via Plaid API
+- **⚡ Transaction Sync**: Two sync modes - Quick Sync (30 days) and Full Sync (customizable range)
+- **📊 Analytics**: Monthly spending analysis with category breakdowns and visual charts
+- **🔒 Secure Authentication**: JWT-based auth with optional Google OAuth integration
+- **🌍 Multi-Currency**: Full support for USD and CAD with automatic regional settings
+- **📱 Responsive Design**: Beautiful, mobile-first interface built with React and Tailwind CSS
+- **🛡️ Security First**: Environment-based configuration, encrypted passwords, secure API keys
+- **🚀 Easy Deployment**: One-command setup script and comprehensive documentation
 
 ## 🚀 Quick Start
 
+### ⚡ TL;DR - Get Running in 2 Minutes
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/YOUR-USERNAME/card-manager.git
+cd card-manager
+./setup.sh
+
+# 2. Add Plaid credentials to server/.env (get free sandbox keys from plaid.com)
+# 3. Start servers
+cd server && npm start &          # Backend
+cd .. && npm run dev              # Frontend (http://localhost:5173)
+```
+
 ### Prerequisites
 
-- **Node.js** (v16 or higher)
-- **npm** or **yarn**
-- **Plaid Account** (for bank connectivity)
-- **Google OAuth** credentials (optional, for Google login)
+- **Node.js** (v16+) - [Download here](https://nodejs.org/)
+- **Plaid Account** (free) - [Get sandbox keys](https://dashboard.plaid.com/)
+- **Google OAuth** (optional) - [Setup guide](https://console.cloud.google.com/)
 
 ### 1. Clone & Setup
 
@@ -27,13 +42,19 @@ A modern, secure personal finance application that connects to your bank account
 git clone https://github.com/YOUR-USERNAME/card-manager.git
 cd card-manager
 
-# Install frontend dependencies
-npm install
+# Run the automated setup script (recommended)
+./setup.sh
+```
 
-# Install backend dependencies
-cd server
+**OR manual setup:**
+```bash
+# Install dependencies
 npm install
-cd ..
+cd server && npm install && cd ..
+
+# Create environment files
+cp .env.example .env
+cp server/.env.example server/.env
 ```
 
 ### 2. Environment Configuration
@@ -65,38 +86,36 @@ GOOGLE_CLIENT_ID=your-google-oauth-client-id
 GOOGLE_CLIENT_SECRET=your-google-oauth-secret
 ```
 
-### 3. Database Setup
+### 3. Start the Application
 
-The application uses SQLite and will automatically create the database file on first run:
-
-```bash
-cd server
-node index.js  # This creates database.db with all required tables
-```
-
-### 4. Start the Application
-
-#### Option A: Development Mode (Recommended)
+#### 🎯 Simple 2-Step Start
 
 ```bash
-# Terminal 1 - Start backend server
+# Step 1: Start the backend server (in terminal 1)
 cd server
-npm run dev  # or npm start
+npm start
 
-# Terminal 2 - Start frontend dev server
-cd ..  # back to root directory
+# Step 2: Start the frontend (in terminal 2)
+cd ..
 npm run dev
 ```
 
-#### Option B: Production Build
+#### 🚀 Access Your Application
+
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:3001
+
+The database (SQLite) will be created automatically on first run with all required tables.
+
+#### 🔧 Development Mode (with auto-restart)
 
 ```bash
-# Build frontend
-npm run build
-
-# Start backend (serves both API and static files)
+# Backend with auto-restart on file changes
 cd server
-npm start
+npm run dev  # requires nodemon: npm install -g nodemon
+
+# Frontend (already has hot reload)
+npm run dev
 ```
 
 ## 🔧 Configuration Guide
@@ -112,32 +131,65 @@ npm start
 
 ### Google OAuth Setup (Optional)
 
+**⚠️ Note**: Google OAuth requires setup to work. If you get "OAuth client not found" error, either:
+- Complete the Google OAuth setup below, OR  
+- Use email/password registration instead (works without any setup)
+
+#### To Enable Google OAuth:
+
 1. **Create Google Project**: Visit [Google Cloud Console](https://console.cloud.google.com)
-2. **Enable OAuth2**: Enable Google+ API
-3. **Create Credentials**: Create OAuth 2.0 client ID
-4. **Set Redirect URI**: `http://localhost:3001/api/auth/google/callback`
+2. **Create New Project**: Name it "Card Manager" or similar
+3. **Enable APIs**: Search for and enable "Google+ API"
+4. **Create OAuth Consent Screen**:
+   - Choose "External" user type
+   - Add your email as a test user
+5. **Create Credentials**:
+   - Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
+   - Application type: "Web application"
+   - Authorized redirect URIs: `http://localhost:3001/api/auth/google/callback`
+6. **Copy Credentials**: Update your `server/.env` file:
+   ```bash
+   GOOGLE_CLIENT_ID=your-actual-client-id-here
+   GOOGLE_CLIENT_SECRET=your-actual-client-secret-here
+   ```
+7. **Restart Backend**: Stop and restart your backend server
 
-## 💡 Usage
+#### 🚀 Skip Google OAuth (Easier):
+Just use the "Register with Email" option instead - it works immediately without any setup!
 
-### Getting Started
+## 💡 Usage Guide
 
-1. **Launch Application**: Navigate to `http://localhost:5173`
-2. **Register/Login**: Create an account or use Google OAuth
-3. **Set Region**: Choose your country (US/Canada) for currency support
-4. **Connect Bank**: Click "Connect Bank" to link your accounts via Plaid
-5. **Sync Transactions**: Use sync buttons to import transaction history
+### 🏁 Getting Started
 
-### Transaction Sync Options
+1. **Launch Application**: Open http://localhost:5173 in your browser
+2. **Create Account**: Register with email/password or use Google OAuth
+3. **Set Regional Preferences**: Choose your country (US/Canada) for proper currency display
+4. **Connect Your Bank**: Click "Connect Bank" to securely link accounts via Plaid
+5. **Sync Transaction History**: Use the sync buttons to import your financial data
 
-#### Quick Sync (⚡)
-- Syncs recent transactions (last 30 days)
-- Fast and efficient for regular updates
-- Perfect for daily/weekly usage
+### ⚡ Transaction Sync Features
 
-#### Full Sync (📈)
-- Comprehensive history sync (last 3 months by default)
-- Imports complete transaction history
-- Great for initial setup or catching up
+Your connected accounts will show two powerful sync options:
+
+#### 🔥 Quick Sync (Purple Button)
+- **Purpose**: Daily/weekly updates
+- **Range**: Last 30 days
+- **Speed**: ⚡ Fast (typically 2-5 seconds)
+- **Best for**: Regular maintenance, checking recent activity
+
+#### 📊 Full Sync (Blue Button)  
+- **Purpose**: Complete history import
+- **Range**: Last 3 months (customizable via API)
+- **Speed**: 🔄 Thorough (30 seconds to 2 minutes depending on transaction volume)
+- **Best for**: Initial setup, comprehensive analysis, catching up after time away
+
+### 🎯 Pro Tips
+
+- **First Time**: Use Full Sync to import your complete history
+- **Regular Use**: Quick Sync daily or weekly to stay current
+- **Multiple Accounts**: Each connected bank account syncs independently
+- **Duplicate Protection**: Smart deduplication prevents duplicate transactions
+- **Balance Updates**: Both sync modes update your current account balances
 
 ### API Endpoints
 
@@ -264,23 +316,57 @@ node test-plaid.js
 
 ### Common Issues
 
-1. **Plaid Connection Failed**
-   - Verify PLAID_CLIENT_ID and PLAID_SECRET in server/.env
-   - Check PLAID_ENV is set correctly (sandbox/development/production)
-   - Ensure Plaid account is properly configured
+#### 1. 🔐 Google OAuth Error: "OAuth client not found" / Error 401: invalid_client
 
-2. **Database Errors**
-   - Delete server/database.db and restart server to recreate
-   - Check file permissions in server directory
+**Problem**: You see this error when clicking "Sign in with Google"
 
-3. **Google OAuth Issues**
-   - Verify redirect URI matches Google Console settings
-   - Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+**Solutions**:
+- **Quick Fix**: Use "Register with Email" instead (no setup required)
+- **Complete Fix**: Follow the Google OAuth setup guide above to get real credentials
+- **Temporary**: Comment out Google OAuth in `server/.env`:
+  ```bash
+  # GOOGLE_CLIENT_ID=your-google-oauth-client-id-here
+  # GOOGLE_CLIENT_SECRET=your-google-oauth-secret-here
+  ```
 
-4. **Transaction Sync Problems**
-   - Ensure bank accounts are connected via Plaid
-   - Check server logs for API errors
-   - Try reconnecting bank account if sync fails
+#### 2. 🏦 Plaid Connection Issues
+
+**Problem**: "Failed to create link token" or connection errors
+
+**Solutions**:
+- Verify your `PLAID_CLIENT_ID` and `PLAID_SECRET` in `server/.env`
+- Ensure `PLAID_ENV=sandbox` for testing (free tier)
+- Check Plaid dashboard: https://dashboard.plaid.com/
+- Make sure you've completed Plaid account verification
+
+#### 3. 💾 Database Problems
+
+**Problem**: Database errors or corrupted data
+
+**Solutions**:
+- Delete `server/database.db` and restart server (recreates fresh database)
+- Check file permissions in server directory
+- Ensure SQLite is working: `sqlite3 --version`
+
+#### 4. ⚡ Transaction Sync Not Working
+
+**Problem**: Sync buttons don't work or return errors
+
+**Solutions**:
+- Ensure you have Plaid-connected accounts (not manually added cards)
+- Check server console for error messages
+- Try disconnecting and reconnecting your bank account
+- Verify Plaid credentials are correct
+
+#### 5. 🚀 Server Won't Start
+
+**Problem**: Backend server fails to start
+
+**Solutions**:
+- Check if port 3001 is already in use: `lsof -i :3001`
+- Verify Node.js version: `node --version` (needs v16+)
+- Install dependencies: `npm install` in both root and server directories
+- Check for syntax errors in `server/.env`
 
 ### Debug Mode
 
