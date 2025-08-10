@@ -4,6 +4,13 @@ import PlaidLink from './PlaidLink';
 import RegionSelector from './RegionSelector';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 
+interface CardCategory {
+  label: string;
+  icon: string;
+  color: string;
+  description: string;
+}
+
 interface Card {
   id: number;
   name: string;
@@ -13,6 +20,10 @@ interface Card {
   currency?: string;
   plaid_id?: string;
   connected: boolean;
+  category?: string;
+  categoryInfo?: CardCategory;
+  institution_name?: string;
+  account_subtype?: string;
 }
 
 interface Transaction {
@@ -40,6 +51,7 @@ interface CardManagerProps {
 const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout }) => {
   const [cards, setCards] = useState<Card[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [cardCategories, setCardCategories] = useState<Record<string, CardCategory>>({});
   const [showAddCard, setShowAddCard] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showPlaidLink, setShowPlaidLink] = useState(false);
@@ -48,6 +60,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isNewUser, setIsNewUser] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [userRegion, setUserRegion] = useState({ country: 'US', currency: 'USD' });
 
   const categories = ['Food & Dining', 'Shopping', 'Transportation', 'Bills & Utilities', 'Entertainment', 'Healthcare', 'Travel', 'Income', 'Other'];
@@ -85,10 +98,11 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
   const loadData = async () => {
     try {
       setLoading(true);
-      const [cardsData, transactionsData, preferencesData] = await Promise.all([
+      const [cardsData, transactionsData, preferencesData, categoriesData] = await Promise.all([
         apiCall('/api/cards'),
         apiCall('/api/transactions'),
-        apiCall('/api/user/preferences')
+        apiCall('/api/user/preferences'),
+        apiCall('/api/card-categories')
       ]);
       
       setCards(cardsData.map((card: any) => ({
@@ -101,6 +115,8 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
         ...transaction,
         cardId: transaction.card_id
       })));
+      
+      setCardCategories(categoriesData);
 
       setUserRegion({
         country: preferencesData.country || 'US',
@@ -168,7 +184,8 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
           type: cardData.type,
           lastFour: cardData.lastFour,
           balance: cardData.balance,
-          currency: userRegion.currency
+          currency: userRegion.currency,
+          category: cardData.category || 'other'
         })
       });
 
@@ -383,33 +400,80 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
           </div>
         )}
 
+        {/* Category Filter */}
+        {cards.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              onClick={() => setCategoryFilter('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                categoryFilter === 'all' 
+                  ? 'bg-indigo-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All Cards ({cards.length})
+            </button>
+            {Object.entries(cardCategories).map(([key, category]) => {
+              const count = cards.filter(card => card.category === key).length;
+              if (count === 0) return null;
+              
+              return (
+                <button
+                  key={key}
+                  onClick={() => setCategoryFilter(key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                    categoryFilter === key 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>{category.icon}</span>
+                  {category.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {cards.map(card => (
-            <div key={card.id} className={`bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow ${card.connected ? 'border-l-4 border-green-500' : ''}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-semibold text-lg text-gray-900 flex items-center gap-2">
-                    {card.name}
-                    {card.connected && <Zap size={16} className="text-green-500" />}
-                  </h3>
-                  <p className="text-gray-500 capitalize">{card.type} •••• {card.last_four}</p>
-                  {card.connected && <p className="text-xs text-green-600 font-medium">Auto-synced</p>}
+          {cards
+            .filter(card => categoryFilter === 'all' || card.category === categoryFilter)
+            .map(card => {
+              const categoryInfo = card.categoryInfo || cardCategories[card.category || 'other'] || cardCategories.other;
+              
+              return (
+                <div key={card.id} className={`bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow ${card.connected ? 'border-l-4 border-green-500' : ''}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{categoryInfo.icon}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full bg-${categoryInfo.color}-100 text-${categoryInfo.color}-800`}>
+                          {categoryInfo.label}
+                        </span>
+                        {card.connected && <Zap size={16} className="text-green-500" />}
+                      </div>
+                      <h3 className="font-semibold text-lg text-gray-900">
+                        {card.name}
+                      </h3>
+                      <p className="text-gray-500 capitalize">{card.type} •••• {card.last_four}</p>
+                      {card.connected && <p className="text-xs text-green-600 font-medium">Auto-synced</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => deleteCard(card.id)}
+                        className="text-red-500 hover:text-red-700 p-1"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(Math.abs(card.balance), card.currency || userRegion.currency)}
+                    {card.type === 'credit' && card.balance < 0 && <span className="text-sm text-red-500 ml-1">debt</span>}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => deleteCard(card.id)}
-                    className="text-red-500 hover:text-red-700 p-1"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(Math.abs(card.balance), card.currency || userRegion.currency)}
-                {card.type === 'credit' && card.balance < 0 && <span className="text-sm text-red-500 ml-1">debt</span>}
-              </div>
-            </div>
-          ))}
+              );
+            })}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -533,7 +597,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
         )}
 
         {showAddCard && (
-          <CardForm onSubmit={addCard} onCancel={() => setShowAddCard(false)} />
+          <CardForm onSubmit={addCard} onCancel={() => setShowAddCard(false)} cardCategories={cardCategories} />
         )}
 
         {showRegionSelector && (
@@ -557,12 +621,17 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
   );
 };
 
-const CardForm: React.FC<{ onSubmit: (data: any) => void; onCancel: () => void }> = ({ onSubmit, onCancel }) => {
+const CardForm: React.FC<{ 
+  onSubmit: (data: any) => void; 
+  onCancel: () => void;
+  cardCategories: Record<string, CardCategory>;
+}> = ({ onSubmit, onCancel, cardCategories }) => {
   const [formData, setFormData] = useState({
     name: '',
     type: 'credit',
     lastFour: '',
-    balance: 0
+    balance: 0,
+    category: 'credit'
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -592,6 +661,19 @@ const CardForm: React.FC<{ onSubmit: (data: any) => void; onCancel: () => void }
           >
             <option value="credit">Credit Card</option>
             <option value="debit">Debit Card</option>
+          </select>
+          
+          <select
+            value={formData.category}
+            onChange={(e) => setFormData({...formData, category: e.target.value})}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+          >
+            <option value="">Select Account Type</option>
+            {Object.entries(cardCategories).map(([key, category]) => (
+              <option key={key} value={key}>
+                {category.icon} {category.label}
+              </option>
+            ))}
           </select>
           <input
             type="text"

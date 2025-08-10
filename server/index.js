@@ -14,6 +14,107 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// Card Categories and Account Types
+const CARD_CATEGORIES = {
+  // Credit Products
+  credit: {
+    label: 'Credit Card',
+    icon: '💳',
+    color: 'blue',
+    description: 'Credit cards and lines of credit'
+  },
+  
+  // Banking Products  
+  chequing: {
+    label: 'Chequing Account',
+    icon: '🏦',
+    color: 'green',
+    description: 'Primary banking and spending account'
+  },
+  savings: {
+    label: 'Savings Account',
+    icon: '💰',
+    color: 'emerald',
+    description: 'Savings and high-interest accounts'
+  },
+  
+  // Investment Accounts
+  tfsa: {
+    label: 'TFSA',
+    icon: '📈',
+    color: 'purple',
+    description: 'Tax-Free Savings Account'
+  },
+  rrsp: {
+    label: 'RRSP',
+    icon: '🎯',
+    color: 'indigo',
+    description: 'Registered Retirement Savings Plan'
+  },
+  investment: {
+    label: 'Investment Account',
+    icon: '📊',
+    color: 'violet',
+    description: 'Brokerage and investment accounts'
+  },
+  
+  // Loans and Mortgages
+  mortgage: {
+    label: 'Mortgage',
+    icon: '🏠',
+    color: 'orange',
+    description: 'Home mortgage and property loans'
+  },
+  loan: {
+    label: 'Loan',
+    icon: '💸',
+    color: 'red',
+    description: 'Personal loans and credit lines'
+  },
+  
+  // Other Products
+  other: {
+    label: 'Other',
+    icon: '📋',
+    color: 'gray',
+    description: 'Other financial accounts'
+  }
+};
+
+// Function to categorize Plaid account types to our categories
+const categorizeAccount = (plaidType, plaidSubtype) => {
+  const type = plaidType?.toLowerCase();
+  const subtype = plaidSubtype?.toLowerCase();
+  
+  // Credit accounts
+  if (type === 'credit' || subtype?.includes('credit')) {
+    return 'credit';
+  }
+  
+  // Investment accounts
+  if (type === 'investment') {
+    if (subtype?.includes('tfsa') || subtype?.includes('tax free')) return 'tfsa';
+    if (subtype?.includes('rrsp') || subtype?.includes('retirement')) return 'rrsp';
+    return 'investment';
+  }
+  
+  // Depository accounts (banking)
+  if (type === 'depository') {
+    if (subtype?.includes('savings') || subtype?.includes('money market')) return 'savings';
+    if (subtype?.includes('checking') || subtype?.includes('chequing')) return 'chequing';
+    return 'chequing'; // Default for depository
+  }
+  
+  // Loan accounts
+  if (type === 'loan') {
+    if (subtype?.includes('mortgage') || subtype?.includes('home')) return 'mortgage';
+    return 'loan';
+  }
+  
+  // Default fallback
+  return 'other';
+};
+
 // Plaid configuration
 console.log('Configuring Plaid with environment:', process.env.PLAID_ENV);
 console.log('Plaid Client ID:', process.env.PLAID_CLIENT_ID ? 'Set' : 'Not set');
@@ -122,6 +223,27 @@ db.serialize(() => {
           console.log('Index creation error:', indexErr.message);
         }
       });
+    }
+  });
+
+  // Add category column to cards table for account type categorization
+  db.run(`ALTER TABLE cards ADD COLUMN category TEXT DEFAULT 'credit'`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.log('Column category already exists or other error:', err.message);
+    }
+  });
+
+  // Add institution_name column to cards table
+  db.run(`ALTER TABLE cards ADD COLUMN institution_name TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.log('Column institution_name already exists or other error:', err.message);
+    }
+  });
+
+  // Add account_subtype column to cards table (from Plaid)
+  db.run(`ALTER TABLE cards ADD COLUMN account_subtype TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.log('Column account_subtype already exists or other error:', err.message);
     }
   });
 
@@ -445,11 +567,14 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
       });
     });
 
-    // Store accounts in database
+    // Store accounts in database with automatic categorization
     const insertPromises = accounts.map(account => {
       return new Promise((resolve, reject) => {
+        // Auto-categorize based on Plaid account type and subtype
+        const category = categorizeAccount(account.type, account.subtype);
+        
         db.run(
-          'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id, category, institution_name, account_subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             req.user.userId,
             `${institution.name} ${account.subtype || account.type}`,
@@ -460,7 +585,10 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
             account.account_id,
             true,
             access_token,
-            item_id
+            item_id,
+            category,
+            institution.name,
+            account.subtype
           ],
           function(err) {
             if (err) reject(err);
@@ -474,7 +602,11 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
               plaid_id: account.account_id,
               connected: true,
               access_token: access_token,
-              item_id: item_id
+              item_id: item_id,
+              category: category,
+              institution_name: institution.name,
+              account_subtype: account.subtype,
+              categoryInfo: CARD_CATEGORIES[category] || CARD_CATEGORIES.other
             });
           }
         );
@@ -869,26 +1001,41 @@ app.post('/api/plaid/sync-all-transactions', authenticateToken, async (req, res)
   }
 });
 
+// Card Categories API
+app.get('/api/card-categories', (req, res) => {
+  res.json(CARD_CATEGORIES);
+});
+
 // Cards routes
 app.get('/api/cards', authenticateToken, (req, res) => {
   db.all('SELECT * FROM cards WHERE user_id = ?', [req.user.userId], (err, cards) => {
     if (err) {
       return res.status(500).json({ error: 'Server error' });
     }
-    res.json(cards);
+    
+    // Enhance cards with category information
+    const enhancedCards = cards.map(card => ({
+      ...card,
+      categoryInfo: CARD_CATEGORIES[card.category] || CARD_CATEGORIES.other
+    }));
+    
+    res.json(enhancedCards);
   });
 });
 
 app.post('/api/cards', authenticateToken, (req, res) => {
-  const { name, type, lastFour, balance, currency } = req.body;
+  const { name, type, lastFour, balance, currency, category } = req.body;
 
   if (!name || !type || !lastFour || balance === undefined) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
+  // Validate category
+  const validCategory = category && CARD_CATEGORIES[category] ? category : 'other';
+
   db.run(
-    'INSERT INTO cards (user_id, name, type, last_four, balance, currency) VALUES (?, ?, ?, ?, ?, ?)',
-    [req.user.userId, name, type, lastFour, balance, currency || 'USD'],
+    'INSERT INTO cards (user_id, name, type, last_four, balance, currency, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [req.user.userId, name, type, lastFour, balance, currency || 'USD', validCategory],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'Server error' });
@@ -898,7 +1045,14 @@ app.post('/api/cards', authenticateToken, (req, res) => {
         if (err) {
           return res.status(500).json({ error: 'Server error' });
         }
-        res.status(201).json(card);
+        
+        // Add category information to response
+        const enhancedCard = {
+          ...card,
+          categoryInfo: CARD_CATEGORIES[card.category] || CARD_CATEGORIES.other
+        };
+        
+        res.status(201).json(enhancedCard);
       });
     }
   );
