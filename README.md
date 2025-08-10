@@ -24,7 +24,7 @@ A modern, secure personal finance application that connects to your bank account
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/YOUR-USERNAME/card-manager.git
 cd card-manager
 
 # Install frontend dependencies
@@ -38,7 +38,15 @@ cd ..
 
 ### 2. Environment Configuration
 
-Create environment files for both frontend and backend:
+Create environment files by copying the template files and adding your credentials:
+
+```bash
+# Copy environment template files
+cp .env.example .env
+cp server/.env.example server/.env
+```
+
+Then edit the environment files with your API credentials:
 
 #### Backend Environment (server/.env)
 ```bash
@@ -284,6 +292,55 @@ DEBUG=true npm start
 ## 📝 License
 
 This project is licensed under the ISC License.
+
+## 📦 Setting Up Your Own Repository
+
+If you want to create your own private repository of this project:
+
+### Option 1: Using GitHub CLI (Recommended)
+
+```bash
+# Authenticate with GitHub
+gh auth login
+
+# Create private repository and push
+gh repo create card-manager --private --source=. --push
+
+# Set up the repository description
+gh repo edit --description "Personal finance tracker with Plaid integration and transaction sync"
+```
+
+### Option 2: Manual Setup
+
+1. **Create GitHub Repository:**
+   - Go to [GitHub](https://github.com) and create a new private repository named `card-manager`
+   - Don't initialize with README, .gitignore, or license (we already have these)
+
+2. **Add Remote and Push:**
+   ```bash
+   # Add your repository as remote origin
+   git remote add origin https://github.com/YOUR-USERNAME/card-manager.git
+   
+   # Push to your repository
+   git branch -M main
+   git push -u origin main
+   ```
+
+3. **Verify Setup:**
+   ```bash
+   # Check remote is set correctly
+   git remote -v
+   
+   # Verify your repository status
+   git status
+   ```
+
+### Important Security Notes
+
+- ✅ **Included in repo:** Template files (`.env.example`), source code, documentation
+- ❌ **Excluded from repo:** `.env` files, database files, API keys, node_modules
+- 🔒 **Your `.env` files are protected** by `.gitignore` and will never be committed
+- 👥 **Collaborators** will need to create their own `.env` files with their API credentials
 
 ## 🤝 Contributing
 
