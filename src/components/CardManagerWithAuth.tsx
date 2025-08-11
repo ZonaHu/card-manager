@@ -309,6 +309,34 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
     }
   };
 
+  const recategorizeTransactions = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const result = await apiCall('/api/transactions/recategorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Refresh data after re-categorization
+      await loadData();
+      
+      // Show success message with details
+      if (result.updatedCount > 0) {
+        setError(`✅ ${result.message} - ${result.updatedCount} transactions re-categorized`);
+      } else {
+        setError(`✅ All transactions are already correctly categorized`);
+      }
+      setTimeout(() => setError(''), 5000);
+      
+    } catch (err: any) {
+      setError(`Transaction re-categorization failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const monthlyData = useMemo(() => {
     const filtered = transactions.filter(t => t.date.startsWith(currentMonth));
     const spending = filtered.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -477,6 +505,22 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
                       <div>
                         <div className="font-medium">{loading ? 'Updating...' : 'Smart Categories'}</div>
                         <div className="text-sm text-gray-500">Re-categorize all cards</div>
+                      </div>
+                    </button>
+                  )}
+                  {transactions.length > 0 && (
+                    <button
+                      onClick={() => {
+                        recategorizeTransactions();
+                        setShowMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                      disabled={loading}
+                    >
+                      <Edit3 size={16} className="text-orange-600" />
+                      <div>
+                        <div className="font-medium">{loading ? 'Updating...' : 'Fix Categories'}</div>
+                        <div className="text-sm text-gray-500">Re-categorize all transactions</div>
                       </div>
                     </button>
                   )}

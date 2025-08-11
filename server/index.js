@@ -138,6 +138,124 @@ const CATEGORIZATION_PATTERNS = {
   ]
 };
 
+// Transaction category mapping from Plaid to user-friendly categories
+// Supports both legacy 'category' and newer 'personal_finance_category' fields
+const mapPlaidCategoryToUserFriendly = (transaction) => {
+  // Prefer the newer personal_finance_category if available
+  const personalFinanceCategory = transaction.personal_finance_category;
+  const legacyCategories = transaction.category;
+
+  // Handle personal_finance_category (newer format)
+  if (personalFinanceCategory && personalFinanceCategory.primary) {
+    const primary = personalFinanceCategory.primary;
+    const detailed = personalFinanceCategory.detailed;
+    
+    // Map personal finance categories to user-friendly names
+    const personalFinanceMappings = {
+      'FOOD_AND_DRINK': 'Food',
+      'TRANSPORTATION': 'Transport',
+      'GENERAL_MERCHANDISE': 'Shopping',
+      'ENTERTAINMENT': 'Entertainment',
+      'TRAVEL': 'Travel',
+      'MEDICAL': 'Health',
+      'BANK_FEES': 'Bills',
+      'LOAN_PAYMENTS': 'Bills',
+      'RENT_AND_UTILITIES': 'Bills',
+      'GENERAL_SERVICES': 'Bills',
+      'INCOME': 'Income',
+      'TRANSFER_IN': 'Transfer',
+      'TRANSFER_OUT': 'Transfer',
+      'DEPOSIT': 'Transfer'
+    };
+
+    const mappedCategory = personalFinanceMappings[primary];
+    if (mappedCategory) {
+      return mappedCategory;
+    }
+
+    // If no mapping found, use the primary category name cleaned up
+    return primary.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // Fallback to legacy category format
+  if (!legacyCategories || legacyCategories.length === 0) {
+    return 'Other';
+  }
+
+  // Get the most specific category (usually the last one)
+  const specificCategory = legacyCategories[legacyCategories.length - 1];
+  const generalCategory = legacyCategories[0];
+
+  // Common legacy category mappings
+  const legacyCategoryMappings = {
+    // Food & Dining
+    'Food and Drink': 'Food',
+    'Restaurants': 'Food',
+    'Fast Food': 'Food',
+    'Coffee Shop': 'Food',
+    'Bar': 'Food',
+    'Nightlife': 'Entertainment',
+    
+    // Transportation
+    'Transportation': 'Transport',
+    'Gas Stations': 'Transport',
+    'Parking': 'Transport',
+    'Public Transportation': 'Transport',
+    'Taxi': 'Transport',
+    'Ride Share': 'Transport',
+    
+    // Shopping
+    'Shops': 'Shopping',
+    'Department Stores': 'Shopping',
+    'Clothing and Accessories': 'Shopping',
+    'Electronics': 'Shopping',
+    'Home Improvement': 'Shopping',
+    'Grocery': 'Groceries',
+    'Supermarkets and Other Grocery Stores': 'Groceries',
+    
+    // Entertainment
+    'Recreation': 'Entertainment',
+    'Entertainment': 'Entertainment',
+    'Movies and DVDs': 'Entertainment',
+    'Music, Video and DVD': 'Entertainment',
+    
+    // Travel
+    'Travel': 'Travel',
+    'Airlines and Aviation Services': 'Travel',
+    'Lodging': 'Travel',
+    'Car Rental': 'Travel',
+    
+    // Bills & Utilities
+    'Payment': 'Bills',
+    'Credit Card': 'Bills',
+    'Bank Fees': 'Bills',
+    'Service Charges': 'Bills',
+    'Utilities': 'Bills',
+    'Internet and Cable': 'Bills',
+    'Mobile Phone': 'Bills',
+    'Insurance': 'Bills',
+    
+    // Health
+    'Healthcare': 'Health',
+    'Dentist': 'Health',
+    'Doctor': 'Health',
+    'Pharmacy': 'Health',
+    
+    // Transfer & Deposits
+    'Deposit': 'Transfer',
+    'Transfer In': 'Transfer',
+    'Transfer Out': 'Transfer',
+    'Payroll': 'Income',
+    'Interest Earned': 'Income'
+  };
+
+  // Try to find a mapping for the specific category first, then general
+  return legacyCategoryMappings[specificCategory] || 
+         legacyCategoryMappings[generalCategory] || 
+         specificCategory || 
+         'Other';
+};
+
 // Enhanced smart categorization function
 const smartCategorizeAccount = (accountName, institutionName, plaidType, plaidSubtype) => {
   // Combine all text for analysis
@@ -727,7 +845,7 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
             matchingAccount.id,
             -transaction.amount, // Plaid uses positive for outgoing, we use negative
             transaction.name,
-            transaction.category?.[0] || 'Other',
+            mapPlaidCategoryToUserFriendly(transaction),
             transaction.date,
             'plaid',
             transaction.transaction_id
@@ -808,6 +926,13 @@ app.post('/api/plaid/sync-transactions', authenticateToken, async (req, res) => 
 
         // Process transactions for each card
         for (const transaction of transactions) {
+          console.log('Processing transaction:', {
+            name: transaction.name,
+            amount: transaction.amount,
+            category: transaction.category,
+            personal_finance_category: transaction.personal_finance_category,
+            mappedCategory: mapPlaidCategoryToUserFriendly(transaction)
+          });
           const matchingCard = cards.find(card => card.plaid_id === transaction.account_id);
           if (!matchingCard) continue;
 
@@ -833,7 +958,7 @@ app.post('/api/plaid/sync-transactions', authenticateToken, async (req, res) => 
                   matchingCard.id,
                   -transaction.amount, // Plaid uses positive for outgoing, we use negative
                   transaction.name,
-                  transaction.category?.[0] || 'Other',
+                  mapPlaidCategoryToUserFriendly(transaction),
                   transaction.date,
                   'plaid',
                   transaction.transaction_id
@@ -972,6 +1097,13 @@ app.post('/api/plaid/sync-all-transactions', authenticateToken, async (req, res)
 
         // Process each transaction
         for (const transaction of transactions) {
+          console.log('Processing transaction:', {
+            name: transaction.name,
+            amount: transaction.amount,
+            category: transaction.category,
+            personal_finance_category: transaction.personal_finance_category,
+            mappedCategory: mapPlaidCategoryToUserFriendly(transaction)
+          });
           const matchingCard = cards.find(card => card.plaid_id === transaction.account_id);
           if (!matchingCard) continue;
 
@@ -997,7 +1129,7 @@ app.post('/api/plaid/sync-all-transactions', authenticateToken, async (req, res)
                   matchingCard.id,
                   -transaction.amount, // Plaid uses positive for outgoing, we use negative
                   transaction.name,
-                  transaction.category?.[0] || 'Other',
+                  mapPlaidCategoryToUserFriendly(transaction),
                   transaction.date,
                   'plaid',
                   transaction.transaction_id
@@ -1081,6 +1213,86 @@ app.post('/api/plaid/sync-all-transactions', authenticateToken, async (req, res)
 // Card Categories API
 app.get('/api/card-categories', (req, res) => {
   res.json(CARD_CATEGORIES);
+});
+
+// Re-categorize all existing transactions using improved categorization
+app.post('/api/transactions/recategorize', authenticateToken, async (req, res) => {
+  try {
+    console.log('Re-categorizing transactions for user:', req.user.userId);
+    
+    // Get all Plaid transactions that need recategorization
+    const transactions = await new Promise((resolve, reject) => {
+      db.all(`
+        SELECT t.*, c.plaid_id, c.access_token, c.item_id 
+        FROM transactions t 
+        JOIN cards c ON t.card_id = c.id 
+        WHERE t.user_id = ? AND t.source = 'plaid' AND t.plaid_transaction_id IS NOT NULL
+      `, [req.user.userId], (err, transactions) => {
+        if (err) reject(err);
+        else resolve(transactions);
+      });
+    });
+
+    console.log(`Found ${transactions.length} Plaid transactions to recategorize`);
+
+    // Group transactions by access token to minimize API calls
+    const transactionsByToken = {};
+    transactions.forEach(transaction => {
+      if (!transactionsByToken[transaction.access_token]) {
+        transactionsByToken[transaction.access_token] = [];
+      }
+      transactionsByToken[transaction.access_token].push(transaction);
+    });
+
+    let updatedCount = 0;
+
+    // Process each group of transactions
+    for (const [accessToken, txnGroup] of Object.entries(transactionsByToken)) {
+      try {
+        // Get fresh transaction data from Plaid
+        const transactionsResponse = await plaidClient.transactionsGet({
+          access_token: accessToken,
+          start_date: '2023-01-01', // Get a wide date range
+          end_date: new Date().toISOString().split('T')[0]
+        });
+
+        const plaidTransactions = transactionsResponse.data.transactions;
+        console.log(`Got ${plaidTransactions.length} transactions from Plaid for recategorization`);
+
+        // Update each transaction with new category
+        for (const dbTransaction of txnGroup) {
+          const plaidTransaction = plaidTransactions.find(pt => pt.transaction_id === dbTransaction.plaid_transaction_id);
+          if (plaidTransaction) {
+            const newCategory = mapPlaidCategoryToUserFriendly(plaidTransaction);
+            console.log(`Updating transaction ${dbTransaction.id}: ${dbTransaction.category} → ${newCategory}`);
+            
+            await new Promise((resolve, reject) => {
+              db.run('UPDATE transactions SET category = ? WHERE id = ?', 
+                [newCategory, dbTransaction.id], 
+                function(err) {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+            updatedCount++;
+          }
+        }
+      } catch (error) {
+        console.error('Error recategorizing transactions for token:', error);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Successfully recategorized ${updatedCount} transactions`,
+      updatedCount 
+    });
+
+  } catch (error) {
+    console.error('Transaction recategorization error:', error);
+    res.status(500).json({ error: 'Failed to recategorize transactions' });
+  }
 });
 
 // Re-categorize all existing cards using smart categorization
