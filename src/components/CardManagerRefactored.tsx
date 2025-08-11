@@ -51,7 +51,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Hooks and services
-  const { apiCall, error, setError } = useApi(token);
+  const { apiCall, error, setError, loading: apiLoading } = useApi(token);
   const cardService = useMemo(() => new CardService(apiCall), [apiCall]);
   const transactionService = useMemo(() => new TransactionService(apiCall), [apiCall]);
 
@@ -200,17 +200,17 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
   const syncTransactions = async (type: 'recent' | 'all' = 'recent', months?: number) => {
     try {
+      console.log('Starting sync transactions:', { type, months });
       setLoading(true);
       setError('');
       
       const result = await transactionService.syncTransactions(type, months);
+      console.log('Sync result:', result);
       
       // Reload data to show new transactions
       await loadData();
-      
-      // You could show a success message here if needed
-      console.log('Sync result:', result);
     } catch (err: any) {
+      console.error('Sync error:', err);
       setError(err.message);
     } finally {
       setLoading(false);

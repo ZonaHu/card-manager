@@ -46,11 +46,13 @@ export const useApi = (token: string, options: UseApiOptions = {}) => {
   }, [token, baseURL, options.defaultHeaders]);
 
   const clearError = useCallback(() => setError(''), []);
+  const setErrorMessage = useCallback((message: string) => setError(message), []);
 
   return {
     apiCall,
     loading,
     error,
-    clearError
+    clearError,
+    setError: setErrorMessage
   };
 };
