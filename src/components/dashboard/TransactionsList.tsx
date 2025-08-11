@@ -43,7 +43,7 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
               <div className={`w-3 h-3 rounded-full ${getCategoryColor(transaction.category)}`} />
               <div className="text-left">
                 <p className="font-medium text-gray-900">{transaction.description}</p>
-                <p className="text-sm text-gray-500">{card?.name} • {transaction.category}</p>
+                <p className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</p>
               </div>
             </div>
             <div className="text-right">
