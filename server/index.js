@@ -158,14 +158,15 @@ const mapPlaidCategoryToUserFriendly = (transaction) => {
       'ENTERTAINMENT': 'Entertainment',
       'TRAVEL': 'Travel',
       'MEDICAL': 'Health',
+      'PERSONAL_CARE': 'Health',
       'BANK_FEES': 'Bills',
       'LOAN_PAYMENTS': 'Bills',
       'RENT_AND_UTILITIES': 'Bills',
       'GENERAL_SERVICES': 'Bills',
       'INCOME': 'Income',
-      'TRANSFER_IN': 'Transfer',
-      'TRANSFER_OUT': 'Transfer',
-      'DEPOSIT': 'Transfer'
+      'TRANSFER_IN': 'Other',
+      'TRANSFER_OUT': 'Other',
+      'DEPOSIT': 'Other'
     };
 
     const mappedCategory = personalFinanceMappings[primary];
@@ -210,8 +211,8 @@ const mapPlaidCategoryToUserFriendly = (transaction) => {
     'Clothing and Accessories': 'Shopping',
     'Electronics': 'Shopping',
     'Home Improvement': 'Shopping',
-    'Grocery': 'Groceries',
-    'Supermarkets and Other Grocery Stores': 'Groceries',
+    'Grocery': 'Food',
+    'Supermarkets and Other Grocery Stores': 'Food',
     
     // Entertainment
     'Recreation': 'Entertainment',
@@ -242,9 +243,9 @@ const mapPlaidCategoryToUserFriendly = (transaction) => {
     'Pharmacy': 'Health',
     
     // Transfer & Deposits
-    'Deposit': 'Transfer',
-    'Transfer In': 'Transfer',
-    'Transfer Out': 'Transfer',
+    'Deposit': 'Other',
+    'Transfer In': 'Other',
+    'Transfer Out': 'Other',
     'Payroll': 'Income',
     'Interest Earned': 'Income'
   };
@@ -1484,6 +1485,50 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
             return res.status(500).json({ error: 'Server error' });
           }
           res.status(201).json(transaction);
+        });
+      }
+    );
+  });
+});
+
+app.put('/api/transactions/:id', authenticateToken, (req, res) => {
+  console.log(`PUT /api/transactions/${req.params.id} called by user ${req.user.userId}`);
+  const transactionId = req.params.id;
+  const { amount, description, category } = req.body;
+
+  if (!amount || !description || !category) {
+    return res.status(400).json({ error: 'Amount, description, and category are required' });
+  }
+
+  // First verify the transaction belongs to the user
+  db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ?', [transactionId, req.user.userId], (err, transaction) => {
+    if (err) {
+      return res.status(500).json({ error: 'Server error' });
+    }
+
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // Update the transaction
+    db.run(
+      'UPDATE transactions SET amount = ?, description = ?, category = ? WHERE id = ? AND user_id = ?',
+      [amount, description, category, transactionId, req.user.userId],
+      function(err) {
+        if (err) {
+          return res.status(500).json({ error: 'Server error' });
+        }
+
+        if (this.changes === 0) {
+          return res.status(404).json({ error: 'Transaction not found' });
+        }
+
+        // Return the updated transaction
+        db.get('SELECT * FROM transactions WHERE id = ?', [transactionId], (err, updatedTransaction) => {
+          if (err) {
+            return res.status(500).json({ error: 'Server error' });
+          }
+          res.json(updatedTransaction);
         });
       }
     );

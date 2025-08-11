@@ -61,24 +61,17 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
   const [error, setError] = useState('');
   const [isNewUser, setIsNewUser] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [transactionFilter, setTransactionFilter] = useState<string>('all');
+  const [transactionSort, setTransactionSort] = useState<string>('newest');
   const [userRegion, setUserRegion] = useState({ country: 'US', currency: 'USD' });
   const [showMenu, setShowMenu] = useState(false);
   const [showAddCardOptions, setShowAddCardOptions] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [showTransactionEditModal, setShowTransactionEditModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const categories = ['Food & Dining', 'Shopping', 'Transportation', 'Bills & Utilities', 'Entertainment', 'Healthcare', 'Travel', 'Income', 'Other'];
+  const categories = ['Food', 'Shopping', 'Transport', 'Bills', 'Entertainment', 'Health', 'Travel', 'Income', 'Other'];
 
-  const categoryColors = {
-    'Food & Dining': '#FF6B6B',
-    'Shopping': '#4ECDC4', 
-    'Transportation': '#45B7D1',
-    'Bills & Utilities': '#96CEB4',
-    'Entertainment': '#FECA57',
-    'Healthcare': '#FF9FF3',
-    'Travel': '#54A0FF',
-    'Income': '#5F27CD',
-    'Other': '#C8D6E5'
-  };
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(`http://localhost:3001${url}`, {
@@ -192,6 +185,11 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
     }
   };
 
+  const handleTransactionClick = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setShowTransactionEditModal(true);
+  };
+
   const addCard = async (cardData: any) => {
     try {
       const newCard = await apiCall('/api/cards', {
@@ -235,6 +233,29 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
         cardId: newTransaction.card_id
       }, ...transactions]);
       setShowAddTransaction(false);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const updateTransaction = async (transactionData: any) => {
+    try {
+      const updatedTransaction = await apiCall(`/api/transactions/${transactionData.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          amount: transactionData.amount,
+          description: transactionData.description,
+          category: transactionData.category
+        })
+      });
+
+      setTransactions(transactions.map(t => 
+        t.id === transactionData.id 
+          ? { ...updatedTransaction, cardId: updatedTransaction.card_id }
+          : t
+      ));
+      setShowTransactionEditModal(false);
+      setEditingTransaction(null);
     } catch (err: any) {
       setError(err.message);
     }
@@ -338,19 +359,45 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
   };
 
   const monthlyData = useMemo(() => {
-    const filtered = transactions.filter(t => t.date.startsWith(currentMonth));
-    const spending = filtered.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    const income = filtered.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+    const monthFiltered = transactions.filter(t => t.date.startsWith(currentMonth));
+    const categoryFiltered = transactionFilter === 'all' 
+      ? monthFiltered 
+      : monthFiltered.filter(t => t.category === transactionFilter);
     
-    const byCategory = filtered.reduce((acc, t) => {
+    // Sort transactions by time/amount
+    const sortedTransactions = [...categoryFiltered].sort((a, b) => {
+      switch (transactionSort) {
+        case 'newest':
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case 'oldest':
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        case 'highest':
+          return Math.abs(b.amount) - Math.abs(a.amount);
+        case 'lowest':
+          return Math.abs(a.amount) - Math.abs(b.amount);
+        default:
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+      }
+    });
+    
+    const spending = monthFiltered.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const income = monthFiltered.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+    
+    const byCategory = monthFiltered.reduce((acc, t) => {
       if (t.amount < 0) {
         acc[t.category] = (acc[t.category] || 0) + Math.abs(t.amount);
       }
       return acc;
     }, {} as Record<string, number>);
 
-    return { spending, income, byCategory, transactions: filtered };
-  }, [transactions, currentMonth]);
+    return { 
+      spending, 
+      income, 
+      byCategory, 
+      transactions: sortedTransactions,
+      allTransactions: monthFiltered
+    };
+  }, [transactions, currentMonth, transactionFilter, transactionSort]);
 
   // Group cards by category with color schemes
   const groupedCards = useMemo(() => {
@@ -389,6 +436,23 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
         info: cardCategories[category]
       }));
   }, [cards, categoryFilter, cardCategories]);
+
+  // Get color for transaction category
+  const getCategoryColor = (category: string) => {
+    const categoryColors: Record<string, string> = {
+      'Food': 'bg-orange-500',
+      'Shopping': 'bg-purple-500',
+      'Transport': 'bg-blue-500',
+      'Bills': 'bg-red-500',
+      'Entertainment': 'bg-pink-500',
+      'Health': 'bg-teal-500',
+      'Travel': 'bg-indigo-500',
+      'Income': 'bg-emerald-500',
+      'Other': 'bg-gray-400'
+    };
+    
+    return categoryColors[category] || 'bg-gray-400';
+  };
 
   if (loading) {
     return (
@@ -785,10 +849,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
                   .map(([category, amount]) => (
                     <div key={category} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: categoryColors[category as keyof typeof categoryColors] }}
-                        />
+                        <div className={`w-3 h-3 rounded-full ${getCategoryColor(category)}`} />
                         <span className="text-sm text-gray-700">{category}</span>
                       </div>
                       <span className="text-sm font-medium text-gray-900">{formatCurrency(amount as number, userRegion.currency)}</span>
@@ -805,12 +866,15 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
               {Object.entries(monthlyData.byCategory)
                 .sort(([,a], [,b]) => b - a)
                 .map(([category, amount]) => (
-                  <div key={category} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <button 
+                    key={category} 
+                    onClick={() => setTransactionFilter(category)}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all hover:bg-gray-100 ${
+                      transactionFilter === category ? 'bg-indigo-50 border-2 border-indigo-200' : 'bg-gray-50'
+                    }`}
+                  >
                     <div className="flex items-center gap-3">
-                      <div 
-                        className="w-4 h-4 rounded-full"
-                        style={{ backgroundColor: categoryColors[category as keyof typeof categoryColors] }}
-                      />
+                      <div className={`w-4 h-4 rounded-full ${getCategoryColor(category)}`} />
                       <span className="font-medium text-gray-900">{category}</span>
                     </div>
                     <div className="text-right">
@@ -819,7 +883,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
                         {monthlyData.spending > 0 ? ((amount / monthlyData.spending) * 100).toFixed(1) : 0}%
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))
               }
             </div>
@@ -827,15 +891,58 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-lg">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-semibold text-gray-900">Recent Transactions</h2>
+              {transactionFilter !== 'all' && (
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${getCategoryColor(transactionFilter)}`}></div>
+                  <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded-md">{transactionFilter}</span>
+                  <button
+                    onClick={() => setTransactionFilter('all')}
+                    className="text-xs text-gray-500 hover:text-red-600"
+                    title="Clear filter"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={transactionSort}
+                onChange={(e) => setTransactionSort(e.target.value)}
+                className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="highest">Highest Amount</option>
+                <option value="lowest">Lowest Amount</option>
+              </select>
+              <select
+                value={transactionFilter}
+                onChange={(e) => setTransactionFilter(e.target.value)}
+                className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="all">All Categories</option>
+                {categories.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="space-y-3">
             {monthlyData.transactions.slice(0, 10).map(transaction => {
               const card = cards.find(c => c.id === transaction.cardId);
               return (
-                <div key={transaction.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
+                <button 
+                  key={transaction.id} 
+                  onClick={() => handleTransactionClick(transaction)}
+                  className="w-full flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 hover:border-gray-200 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${transaction.amount > 0 ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <div>
+                    <div className={`w-3 h-3 rounded-full ${getCategoryColor(transaction.category)}`} />
+                    <div className="text-left">
                       <p className="font-medium text-gray-900">{transaction.description}</p>
                       <p className="text-sm text-gray-500">{card?.name} • {transaction.category}</p>
                     </div>
@@ -846,7 +953,7 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
                     </p>
                     <p className="text-sm text-gray-500">{transaction.date}</p>
                   </div>
-                </div>
+                </button>
               );
             })}
             {monthlyData.transactions.length === 0 && (
@@ -899,6 +1006,19 @@ const CardManagerWithAuth: React.FC<CardManagerProps> = ({ user, token, onLogout
               setShowAddCard(true);
             }}
             onClose={() => setShowAddCardOptions(false)}
+          />
+        )}
+
+        {showTransactionEditModal && editingTransaction && (
+          <TransactionEditModal
+            transaction={editingTransaction}
+            cards={cards}
+            categories={categories}
+            onSubmit={updateTransaction}
+            onCancel={() => {
+              setShowTransactionEditModal(false);
+              setEditingTransaction(null);
+            }}
           />
         )}
       </div>
@@ -1133,6 +1253,120 @@ const AddCardOptions: React.FC<{
         >
           Cancel
         </button>
+      </div>
+    </div>
+  );
+};
+
+const TransactionEditModal: React.FC<{
+  transaction: Transaction;
+  cards: Card[];
+  categories: string[];
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+}> = ({ transaction, cards, categories, onSubmit, onCancel }) => {
+  const [amount, setAmount] = useState(Math.abs(transaction.amount).toString());
+  const [description, setDescription] = useState(transaction.description);
+  const [category, setCategory] = useState(transaction.category);
+  const [isNegative, setIsNegative] = useState(transaction.amount < 0);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      id: transaction.id,
+      amount: isNegative ? -parseFloat(amount) : parseFloat(amount),
+      description,
+      category
+    });
+  };
+
+  const card = cards.find(c => c.id === transaction.cardId);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+        <h2 className="text-xl font-semibold mb-4">Edit Transaction</h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Card
+            </label>
+            <div className="p-3 bg-gray-100 rounded-lg text-sm text-gray-600">
+              {card?.name || 'Unknown Card'}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Amount
+            </label>
+            <div className="flex gap-2">
+              <select
+                value={isNegative ? 'expense' : 'income'}
+                onChange={(e) => setIsNegative(e.target.value === 'expense')}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="expense">Expense (-)</option>
+                <option value="income">Income (+)</option>
+              </select>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                step="0.01"
+                min="0"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              required
+            >
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

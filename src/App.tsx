@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Auth from './components/Auth';
 import CardManagerWithAuth from './components/CardManagerWithAuth';
+import CardManagerRefactored from './components/CardManagerRefactored';
 
 interface User {
   id: number;
@@ -58,7 +59,7 @@ const App: React.FC = () => {
     return <Auth onLogin={handleLogin} />;
   }
 
-  return <CardManagerWithAuth user={user} token={token} onLogout={handleLogout} />;
+  return <CardManagerRefactored user={user} token={token} onLogout={handleLogout} />;
 };
 
 export default App;
