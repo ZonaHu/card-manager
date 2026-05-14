@@ -1,12 +1,11 @@
 import type { Transaction } from '../types';
+import { REFUND_KEYWORDS } from './transactionPatterns';
 
 // Given the full transaction history, find refunds that pair to a purchase
 // posted in a different calendar month. Returns the matched pairs so the UI
 // can show "Refunds a purchase from <month>" beneath the refund row — without
 // that hint, a refund that lands in April for a March charge looks like free
 // money in April's totals.
-
-const REFUND_KEYWORDS = /\brefund\b|\breversal\b|\breversed\b|merchandise return/i;
 
 export interface CrossMonthRefund {
   refundId: number;

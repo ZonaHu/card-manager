@@ -43,6 +43,12 @@ describe('extractCounterparty', () => {
     expect(extractCounterparty(undefined)).toBe('unknown');
     expect(extractCounterparty('')).toBe('unknown');
   });
+
+  it('still surfaces the name when "INTERAC ETRNSFR RECEIVED" carries one', () => {
+    // Regression: earlier code returned the generic "Interac transfer" for
+    // any ETRNSFR string, dropping a usable name suffix.
+    expect(extractCounterparty('INTERAC ETRNSFR RECEIVED Jane Doe')).toBe('Jane Doe');
+  });
 });
 
 describe('summarizeETransfers', () => {

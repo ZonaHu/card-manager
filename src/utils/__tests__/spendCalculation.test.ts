@@ -295,6 +295,19 @@ describe('calculateMonthlyData', () => {
     expect(r.reimbursementsApplied).toBe(40);
   });
 
+  it('does NOT credit a cross-month reimbursement against the previous-month spending headline', () => {
+    // Reimbursing an April purchase in May. May's currentMonth filter excludes
+    // the April purchase, so May's spending headline shouldn't drop AND
+    // reimbursementsApplied shouldn't claim a reduction that didn't happen.
+    const purchaseApr = tx({ cardId: 3, amount: -100, date: '2026-03-31', description: 'DINNER', category: 'Food' });
+    const reimburseMay = tx({ cardId: 1, amount: 40, date: '2026-04-12', description: 'PAYBACK', category: 'Other' });
+    (reimburseMay as any).reimburses_id = purchaseApr.id;
+    const r = calc([purchaseApr, reimburseMay]);
+    expect(r.depositAccountSpending).toBe(0);     // no in-month purchase to bite against
+    expect(r.creditCardSpending).toBe(0);
+    expect(r.reimbursementsApplied).toBe(0);      // headline must match
+  });
+
   it('never lets a reimbursement push spending below zero', () => {
     const dinner = tx({ cardId: 3, amount: -20, date: '2026-04-05', description: 'DINNER', category: 'Food' });
     const reimbursement = tx({ cardId: 1, amount: 50, date: '2026-04-08', description: 'PAYBACK', category: 'Other' });

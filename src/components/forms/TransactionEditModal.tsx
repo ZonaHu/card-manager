@@ -38,6 +38,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   // Reimbursement linker state — only relevant when this transaction is positive.
   const [reimburseSearch, setReimburseSearch] = useState('');
   const [reimburseSaving, setReimburseSaving] = useState(false);
+  const [reimburseError, setReimburseError] = useState<string | null>(null);
   const [linkedPurchaseId, setLinkedPurchaseId] = useState<number | null>(
     typeof transaction.reimburses_id === 'number' ? transaction.reimburses_id : null
   );
@@ -58,15 +59,22 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   async function setReimbursement(purchaseId: number | null) {
     try {
       setReimburseSaving(true);
+      setReimburseError(null);
       const res = await fetch(`${API_BASE_URL}/api/transactions/${transaction.id}/reimburses`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ purchaseId })
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setReimburseError(body?.error || `Failed (${res.status})`);
+        return;
+      }
       setLinkedPurchaseId(purchaseId);
       onReimbursementChange?.();
+    } catch (e: any) {
+      setReimburseError(e?.message || 'Network error');
     } finally {
       setReimburseSaving(false);
     }
@@ -202,6 +210,11 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
               <div className="text-sm font-medium text-emerald-900 mb-2">
                 Reimbursement for a purchase?
               </div>
+              {reimburseError && (
+                <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1 mb-2">
+                  {reimburseError}
+                </div>
+              )}
               {linkedPurchase ? (
                 <div className="text-sm text-gray-700">
                   Linked to: <span className="font-medium">{linkedPurchase.description}</span>{' '}

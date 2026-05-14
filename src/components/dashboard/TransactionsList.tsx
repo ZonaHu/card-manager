@@ -5,6 +5,7 @@ import { formatCurrency } from '../../utils/currency';
 import { findWashedTransactionIds } from '../../utils/spendCalculation';
 import { findCrossMonthRefunds } from '../../utils/refundCrossMonth';
 import { isETransfer } from '../../utils/eTransfer';
+import { REFUND_KEYWORDS } from '../../utils/transactionPatterns';
 
 interface TransactionsListProps {
   transactions: Transaction[];
@@ -85,7 +86,7 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
         const isSplit = transaction.source === 'manual' &&
           /split from/i.test(transaction.description || '');
         const isRefund = transaction.amount > 0 &&
-          /\brefund\b|\breversal\b|\breversed\b|merchandise return/i.test(transaction.description || '');
+          REFUND_KEYWORDS.test(transaction.description || '');
         const isPending = !!transaction.pending;
         const isETx = isETransfer(transaction);
         const isReimbursement = typeof transaction.reimburses_id === 'number';

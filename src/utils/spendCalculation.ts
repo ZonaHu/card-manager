@@ -1,5 +1,6 @@
 import type { Card, MonthlyData, Transaction, TransactionFilter, TransactionSort } from '../types';
 import { isETransfer } from './eTransfer';
+import { REFUND_KEYWORDS, WASH_REVERSAL_KEYWORDS } from './transactionPatterns';
 
 // Match tolerances. Cross-bank posting can introduce small rounding / FX drift,
 // so allow $0.05 or 0.5% of the amount, whichever is larger. The date window
@@ -156,10 +157,7 @@ export function findWashedTransactionIds(txs: Transaction[]): Set<number> {
       for (const b of list) {
         if (b.id === a.id || b.amount <= 0 || washed.has(b.id)) continue;
         if (Math.abs(b.amount - absA) > tol) continue;
-        const bDesc = (b.description ?? '').toLowerCase();
-        const looksLikeReversal =
-          bDesc.includes('rebate') || bDesc.includes('refund') ||
-          bDesc.includes('reversal') || bDesc.includes('reversed');
+        const looksLikeReversal = WASH_REVERSAL_KEYWORDS.test(b.description ?? '');
         const aCode = bracketCode(a.description);
         const bCode = bracketCode(b.description);
         const sharedCode = aCode && bCode && aCode === bCode;
@@ -223,16 +221,19 @@ export function calculateMonthlyData({
   // excluded entirely from the spend/income aggregates.
   const washedIds = findWashedTransactionIds(filtered);
 
-  // Reimbursement index. Use the FULL transactions list (not just `filtered`)
-  // for the target lookup so a May reimbursement of an April purchase still
-  // resolves — though only reimbursements in the current month change the
-  // current month's spending. The target's contribution to spend is reduced
-  // by the reimbursement amount regardless of which month it sits in; we
-  // expose the in-month delta as reimbursementsApplied.
+  // Reimbursement index. A reimbursement only reduces the current month's
+  // spending headline if BOTH the purchase and the reimbursement fall inside
+  // the visible month — otherwise the subtraction below has nothing to bite
+  // against and we'd show a "Net of $X reimbursements" hint that doesn't
+  // match the actual change in `spending`. So only count reimbursements
+  // whose target is in `filtered`. Out-of-month reimbursements still get
+  // their Reimburse badge in the transaction list (handled by the UI), they
+  // just don't move the headline number for this month.
+  const idsInFiltered = new Set(filtered.map(t => t.id));
   const reimbursementByTarget = new Map<number, number>();
   let reimbursementsApplied = 0;
   for (const t of filtered) {
-    if (t.amount > 0 && typeof t.reimburses_id === 'number') {
+    if (t.amount > 0 && typeof t.reimburses_id === 'number' && idsInFiltered.has(t.reimburses_id)) {
       reimbursementByTarget.set(
         t.reimburses_id,
         (reimbursementByTarget.get(t.reimburses_id) || 0) + t.amount
@@ -352,8 +353,7 @@ export function calculateMonthlyData({
       //   merchant refund (description contains "refund"/"reversal"/"return")
       //     → reduces the original purchase, so subtract from creditCardSpending.
       // Same shape applies on deposit accounts for debit-card refunds.
-      const lowerDesc = (t.description ?? '').toLowerCase();
-      const looksLikeRefund = /\brefund\b|\breversal\b|\breversed\b|merchandise return/.test(lowerDesc);
+      const looksLikeRefund = REFUND_KEYWORDS.test(t.description ?? '');
       if (isCC) {
         if (looksLikeRefund) creditCardSpending -= t.amount;
         continue;

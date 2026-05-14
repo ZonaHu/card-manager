@@ -57,4 +57,24 @@ describe('POST /api/transactions/:id/reimburses', () => {
       .send({ purchaseId: reimbId });
     expect(res.status).toBe(400);
   });
+
+  it('does NOT let user A link across user B transactions', async () => {
+    const a = request.agent(app);
+    const seedA = await seed(a);
+
+    const b = request.agent(app);
+    await b.post('/api/auth/register')
+      .send({ name: 'B', email: 'b@example.com', password: 'longenough123' });
+    const cardB = await b.post('/api/cards').send({
+      name: 'B Checking', type: 'debit', lastFour: '0002', balance: 1000
+    });
+    const purchaseB = await b.post('/api/transactions').send({
+      cardId: cardB.body.id, amount: -50, description: 'B DINNER', category: 'Food', date: '2026-04-10'
+    });
+
+    // A tries to link their reimbursement to B's purchase — must 404.
+    const res = await a.post(`/api/transactions/${seedA.reimbId}/reimburses`)
+      .send({ purchaseId: purchaseB.body.id });
+    expect(res.status).toBe(404);
+  });
 });

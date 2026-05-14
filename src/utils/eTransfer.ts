@@ -27,13 +27,21 @@ export function extractCounterparty(desc: string | undefined): string {
   const wsMatch = s.match(/^(.+?)\s*-\s*INTERAC e-Transfer/i);
   if (wsMatch) return wsMatch[1].trim();
 
-  // "[CW]INTERAC ETRNSFR SENT TD 20260991049TCCJZE" (BMO) — no counterparty;
-  // strip the bracket code and emit a friendly fallback.
-  if (/INTERAC ETRNSFR (SENT|RECEIVED)/i.test(s)) return 'Interac transfer';
-
   // "INTERAC E-TRANSFER SEND|RECEIVE NAME" (Simplii) — name follows verb.
-  const simpliiMatch = s.match(/INTERAC E-TRANSFER\s+(?:SEND|RECEIVE|RECEIVED|SENT)\s+(.+)$/i);
+  // Check BEFORE the bare "INTERAC ETRNSFR" branch so a mixed-format string
+  // like "INTERAC ETRNSFR RECEIVED Jane Doe" still surfaces the name.
+  const simpliiMatch = s.match(/INTERAC E-?TRANSFER\s+(?:SEND|RECEIVE|RECEIVED|SENT)\s+(.+)$/i);
   if (simpliiMatch) return simpliiMatch[1].trim();
+  const etrnsfrMatch = s.match(/INTERAC ETRNSFR\s+(?:SENT|RECEIVED)\s+(.+)$/i);
+  if (etrnsfrMatch) {
+    // BMO's "[CW]INTERAC ETRNSFR SENT TD 20260991049TCCJZE" — the suffix is
+    // an institution code + reference, no counterparty name. Detect by the
+    // shape (single short word followed by an all-caps reference) and fall
+    // back to a generic label.
+    const rest = etrnsfrMatch[1].trim();
+    if (/^[A-Z]{2,4}\s+[A-Z0-9]{10,}$/.test(rest)) return 'Interac transfer';
+    return rest;
+  }
 
   // "E-TRANSFER <ref-number> NAME" (CIBC) — ref number then name. Ref is all
   // digits, name is the rest.
