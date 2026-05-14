@@ -769,7 +769,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
         {/* Sync rules — categorization overrides + auto-split. Collapsed by
             default; surfaces what's running silently during Plaid sync. */}
-        <RulesPanel cards={cards} />
+        <RulesPanel cards={cards} allTransactions={transactions} />
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -913,6 +913,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           <TransactionEditModal
             transaction={editingTransaction}
             cards={cards}
+            allTransactions={transactions}
             onSubmit={updateTransaction}
             onCancel={() => {
               setShowTransactionEditModal(false);
