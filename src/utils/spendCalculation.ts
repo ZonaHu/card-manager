@@ -259,6 +259,10 @@ export function calculateMonthlyData({
     // categorization rule) for transactions that move money between the user's
     // own accounts and should be excluded from spend, cash outflow, and income.
     if (t.category === 'Transfer') continue;
+    // "Deposit" is the generic inbound bucket (PayPal cashout, "INTERNET
+    // DEPOSIT", branch cash deposit). It's not income — the user can reclass
+    // a specific deposit to Income if it actually represents earnings.
+    if (t.category === 'Deposit' && t.amount > 0) continue;
 
     const cardId = getCardId(t);
     const card = cards.find(c => c.id === cardId);

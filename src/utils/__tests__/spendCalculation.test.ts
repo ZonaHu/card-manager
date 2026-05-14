@@ -303,6 +303,22 @@ describe('calculateMonthlyData', () => {
     expect(r.creditCardSpending).toBe(0);
   });
 
+  it('excludes generic "Deposit" positives from income (user reclasses true earnings to Income)', () => {
+    const r = calc([
+      tx({ cardId: 1, amount: 1500, date: '2026-04-05', description: 'DEPOSIT PAYPAL', category: 'Deposit' }),
+      tx({ cardId: 1, amount: 322.70, date: '2026-04-15', description: 'PAYROLL DEPOSIT Amazon', category: 'Income' })
+    ]);
+    expect(r.income).toBe(322.70);   // only payroll counts
+  });
+
+  it('counts ATM withdrawals categorized "Cash" as deposit-account spending', () => {
+    const r = calc([
+      tx({ cardId: 1, amount: -100, date: '2026-04-10', description: 'ATM WITHDRAWAL BAY and COLLEGE', category: 'Cash' })
+    ]);
+    expect(r.depositAccountSpending).toBe(100);
+    expect(r.byCategory.Cash).toBe(100);
+  });
+
   it('produces a byCategory breakdown over negative amounts only', () => {
     const r = calc([
       tx({ cardId: 3, amount: -40, date: '2026-04-05', category: 'Food' }),

@@ -1,12 +1,15 @@
 export const CATEGORIES = [
   'Food',
-  'Shopping', 
+  'Shopping',
   'Transport',
   'Bills',
   'Entertainment',
   'Health',
   'Travel',
   'Income',
+  'Transfer',
+  'Cash',
+  'Deposit',
   'Other'
 ] as const;
 
@@ -21,6 +24,9 @@ export const CATEGORY_COLORS: Record<CategoryType, string> = {
   'Health': 'bg-teal-500',
   'Travel': 'bg-indigo-500',
   'Income': 'bg-emerald-500',
+  'Transfer': 'bg-slate-500',
+  'Cash': 'bg-yellow-500',
+  'Deposit': 'bg-cyan-500',
   'Other': 'bg-gray-400'
 };
 
