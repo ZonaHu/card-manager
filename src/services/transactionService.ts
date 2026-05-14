@@ -52,8 +52,8 @@ export class TransactionService {
 
   async syncTransactions(type: 'recent' | 'all' = 'recent', months?: number): Promise<ApiResponse> {
     const endpoint = type === 'all' 
-      ? `/api/sync-transactions${months ? `?months=${months}` : ''}` 
-      : '/api/sync-recent-transactions';
+      ? `/api/plaid/sync-all-transactions${months ? `?months=${months}` : ''}` 
+      : '/api/plaid/sync-transactions';
     
     return this.apiCall(endpoint, { method: 'POST' });
   }
@@ -62,5 +62,13 @@ export class TransactionService {
     return this.apiCall('/api/transactions/recategorize', {
       method: 'POST'
     });
+  }
+
+  async setReimbursement(reimbursementId: number, purchaseId: number | null): Promise<Transaction> {
+    const updated = await this.apiCall(`/api/transactions/${reimbursementId}/reimburses`, {
+      method: 'POST',
+      body: JSON.stringify({ purchaseId })
+    });
+    return { ...updated, cardId: updated.card_id };
   }
 }

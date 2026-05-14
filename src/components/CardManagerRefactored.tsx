@@ -947,6 +947,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               setShowTransactionEditModal(false);
               setEditingTransaction(null);
             }}
+            onReimbursementChange={loadData}
           />
         )}
 

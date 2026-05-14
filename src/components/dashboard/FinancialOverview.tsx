@@ -8,15 +8,21 @@ interface FinancialOverviewProps {
   userRegion: UserRegion;
   currentMonth: string;
   onMonthChange: (month: string) => void;
+  onScrollToTransactions?: () => void;
 }
 
 export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   monthlyData,
   userRegion,
   currentMonth,
-  onMonthChange
+  onMonthChange,
+  onScrollToTransactions
 }) => {
-  const netSpending = monthlyData.spending - monthlyData.income;
+  // Net cash flow = income - total cash out of deposit accounts (includes CC payments,
+  // excludes credit card spending since that's debt, not cash).
+  // Falls back to (spending - income) if the calculation wasn't split by account type.
+  const cashOutflow = monthlyData.depositAccountCashOutflow ?? monthlyData.spending;
+  const netSpending = cashOutflow - monthlyData.income;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -35,7 +41,10 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       </div>
 
       {/* Total Spending */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
+      <button 
+        onClick={onScrollToTransactions}
+        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
+      >
         <div className="flex items-center gap-3 mb-2">
           <DollarSign className="text-red-600" size={24} />
           <h3 className="text-lg font-semibold text-gray-900">Spending</h3>
@@ -44,10 +53,23 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
           {formatCurrency(monthlyData.spending, userRegion.currency)}
         </p>
         <p className="text-sm text-gray-500">{monthlyData.transactions.filter(t => t.amount < 0).length} transactions</p>
-      </div>
+        {(monthlyData.reimbursementsApplied ?? 0) > 0 && (
+          <p className="text-xs text-emerald-700 mt-1">
+            Net of {formatCurrency(monthlyData.reimbursementsApplied!, userRegion.currency)} reimbursements
+          </p>
+        )}
+        {((monthlyData.eTransfersIn ?? 0) + (monthlyData.eTransfersOut ?? 0)) > 0 && (
+          <p className="text-xs text-gray-500 mt-0.5">
+            E-Transfers excluded — see panel below
+          </p>
+        )}
+      </button>
 
       {/* Total Income */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
+      <button 
+        onClick={onScrollToTransactions}
+        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
+      >
         <div className="flex items-center gap-3 mb-2">
           <TrendingUp className="text-green-600" size={24} />
           <h3 className="text-lg font-semibold text-gray-900">Income</h3>
@@ -56,10 +78,13 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
           +{formatCurrency(monthlyData.income, userRegion.currency)}
         </p>
         <p className="text-sm text-gray-500">{monthlyData.transactions.filter(t => t.amount > 0).length} transactions</p>
-      </div>
+      </button>
 
       {/* Net Change */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
+      <button 
+        onClick={onScrollToTransactions}
+        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
+      >
         <div className="flex items-center gap-3 mb-2">
           <TrendingUp className={netSpending <= 0 ? "text-green-600" : "text-red-600"} size={24} />
           <h3 className="text-lg font-semibold text-gray-900">Net</h3>
@@ -70,7 +95,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         <p className="text-sm text-gray-500">
           {netSpending <= 0 ? 'Positive cash flow' : 'Net spending'}
         </p>
-      </div>
+      </button>
     </div>
   );
 };

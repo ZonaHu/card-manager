@@ -15,6 +15,9 @@ interface TransactionEditModalProps {
     category: string;
   }) => void;
   onCancel: () => void;
+  // Called after a reimbursement link is changed so the parent can re-fetch
+  // transactions and re-render aggregates. Optional — older callers still work.
+  onReimbursementChange?: () => void;
 }
 
 export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
@@ -22,7 +25,8 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   cards,
   allTransactions,
   onSubmit,
-  onCancel
+  onCancel,
+  onReimbursementChange
 }) => {
   const [amount, setAmount] = useState(Math.abs(transaction.amount).toString());
   const [description, setDescription] = useState(transaction.description);
@@ -30,6 +34,43 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const [isNegative, setIsNegative] = useState(transaction.amount < 0);
   const [rememberMerchant, setRememberMerchant] = useState(false);
   const [savingRule, setSavingRule] = useState(false);
+
+  // Reimbursement linker state — only relevant when this transaction is positive.
+  const [reimburseSearch, setReimburseSearch] = useState('');
+  const [reimburseSaving, setReimburseSaving] = useState(false);
+  const [linkedPurchaseId, setLinkedPurchaseId] = useState<number | null>(
+    typeof transaction.reimburses_id === 'number' ? transaction.reimburses_id : null
+  );
+  const linkedPurchase = React.useMemo(
+    () => linkedPurchaseId == null ? null : allTransactions.find(t => t.id === linkedPurchaseId) ?? null,
+    [linkedPurchaseId, allTransactions]
+  );
+  const reimburseCandidates = React.useMemo(() => {
+    if (transaction.amount <= 0) return [];
+    const q = reimburseSearch.trim().toLowerCase();
+    return allTransactions
+      .filter(t => t.amount < 0 && t.id !== transaction.id)
+      .filter(t => !q || (t.description ?? '').toLowerCase().includes(q))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 8);
+  }, [allTransactions, reimburseSearch, transaction.amount, transaction.id]);
+
+  async function setReimbursement(purchaseId: number | null) {
+    try {
+      setReimburseSaving(true);
+      const res = await fetch(`${API_BASE_URL}/api/transactions/${transaction.id}/reimburses`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchaseId })
+      });
+      if (!res.ok) return;
+      setLinkedPurchaseId(purchaseId);
+      onReimbursementChange?.();
+    } finally {
+      setReimburseSaving(false);
+    }
+  }
 
   // Default merchant pattern is a stable substring of the description — first
   // 1–3 alpha words. User can edit before saving.
@@ -155,6 +196,61 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
               </>
             )}
           </div>
+
+          {transaction.amount > 0 && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+              <div className="text-sm font-medium text-emerald-900 mb-2">
+                Reimbursement for a purchase?
+              </div>
+              {linkedPurchase ? (
+                <div className="text-sm text-gray-700">
+                  Linked to: <span className="font-medium">{linkedPurchase.description}</span>{' '}
+                  ({linkedPurchase.date}, ${Math.abs(linkedPurchase.amount).toFixed(2)})
+                  <button
+                    type="button"
+                    disabled={reimburseSaving}
+                    onClick={() => setReimbursement(null)}
+                    className="ml-2 text-xs text-rose-600 hover:underline disabled:opacity-50"
+                  >
+                    unlink
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-emerald-800 mb-2">
+                    Picking a purchase subtracts this amount from that purchase's
+                    contribution to spending instead of counting it as income.
+                  </p>
+                  <input
+                    type="text"
+                    value={reimburseSearch}
+                    onChange={e => setReimburseSearch(e.target.value)}
+                    placeholder="Search recent purchases…"
+                    className="w-full p-2 text-sm border border-emerald-200 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <div className="space-y-1 max-h-44 overflow-auto">
+                    {reimburseCandidates.length === 0 && (
+                      <div className="text-xs text-gray-500">No matching purchases.</div>
+                    )}
+                    {reimburseCandidates.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={reimburseSaving}
+                        onClick={() => setReimbursement(p.id)}
+                        className="w-full text-left text-xs p-2 rounded hover:bg-emerald-100 disabled:opacity-50 flex justify-between gap-2"
+                      >
+                        <span className="truncate">{p.description}</span>
+                        <span className="text-gray-600 whitespace-nowrap">
+                          {p.date} · ${Math.abs(p.amount).toFixed(2)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button

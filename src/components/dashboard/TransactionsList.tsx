@@ -4,6 +4,7 @@ import { getCategoryColor } from '../../constants/categories';
 import { formatCurrency } from '../../utils/currency';
 import { findWashedTransactionIds } from '../../utils/spendCalculation';
 import { findCrossMonthRefunds } from '../../utils/refundCrossMonth';
+import { isETransfer } from '../../utils/eTransfer';
 
 interface TransactionsListProps {
   transactions: Transaction[];
@@ -19,12 +20,13 @@ interface TransactionsListProps {
 // Inline visual badges to make the dashboard self-explanatory: any
 // transaction the spend calc treats specially gets a hint chip so the user
 // can see at a glance why a particular row is or isn't affecting their totals.
-const Badge: React.FC<{ tone: 'slate' | 'amber' | 'purple' | 'blue'; children: React.ReactNode; title?: string }> = ({ tone, children, title }) => {
+const Badge: React.FC<{ tone: 'slate' | 'amber' | 'purple' | 'blue' | 'emerald'; children: React.ReactNode; title?: string }> = ({ tone, children, title }) => {
   const palette: Record<string, string> = {
     slate: 'bg-slate-100 text-slate-700',
     amber: 'bg-amber-100 text-amber-800',
     purple: 'bg-purple-100 text-purple-800',
-    blue: 'bg-blue-100 text-blue-800'
+    blue: 'bg-blue-100 text-blue-800',
+    emerald: 'bg-emerald-100 text-emerald-800'
   };
   return (
     <span title={title} className={`text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded ${palette[tone]}`}>
@@ -47,6 +49,23 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
     () => new Map(findCrossMonthRefunds(allTransactions ?? transactions).map(x => [x.refundId, x])),
     [allTransactions, transactions]
   );
+  // Build a reverse index: purchase.id → array of reimbursements pointing at it.
+  // Lets the negative row show "Reimbursed $X" without scanning every render.
+  const reimbursementsByPurchase = React.useMemo(() => {
+    const map = new Map<number, Transaction[]>();
+    for (const t of (allTransactions ?? transactions)) {
+      if (typeof t.reimburses_id === 'number' && t.amount > 0) {
+        if (!map.has(t.reimburses_id)) map.set(t.reimburses_id, []);
+        map.get(t.reimburses_id)!.push(t);
+      }
+    }
+    return map;
+  }, [allTransactions, transactions]);
+  const purchaseById = React.useMemo(() => {
+    const map = new Map<number, Transaction>();
+    for (const t of (allTransactions ?? transactions)) map.set(t.id, t);
+    return map;
+  }, [allTransactions, transactions]);
   const displayTransactions = transactions.slice(0, limit);
 
   if (transactions.length === 0) {
@@ -68,6 +87,13 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
         const isRefund = transaction.amount > 0 &&
           /\brefund\b|\breversal\b|\breversed\b|merchandise return/i.test(transaction.description || '');
         const isPending = !!transaction.pending;
+        const isETx = isETransfer(transaction);
+        const isReimbursement = typeof transaction.reimburses_id === 'number';
+        const linkedPurchase = isReimbursement ? purchaseById.get(transaction.reimburses_id as number) : undefined;
+        const reimbursedBy = reimbursementsByPurchase.get(transaction.id);
+        const reimbursedTotal = reimbursedBy
+          ? reimbursedBy.reduce((s, r) => s + r.amount, 0)
+          : 0;
 
         return (
           <button
@@ -85,11 +111,23 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
                   {isSplit && <Badge tone="purple" title="Auto-split off a larger charge by a split rule">Split</Badge>}
                   {isRefund && <Badge tone="blue" title="Merchant refund — subtracted from card spending">Refund</Badge>}
                   {isPending && <Badge tone="blue" title="Not yet posted — excluded from totals until it settles">Pending</Badge>}
+                  {isETx && <Badge tone="emerald" title="Interac e-Transfer — not counted in spending or income">E-Transfer</Badge>}
+                  {isReimbursement && <Badge tone="emerald" title="Linked to a purchase — offsets that spend instead of counting as income">Reimburse</Badge>}
                 </div>
                 <p className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</p>
                 {crossMonth.has(transaction.id) && (
                   <p className="text-[10px] text-blue-600">
                     Refunds a purchase from {crossMonth.get(transaction.id)!.purchaseMonth}
+                  </p>
+                )}
+                {isReimbursement && linkedPurchase && (
+                  <p className="text-[10px] text-emerald-700">
+                    Reimburses: {linkedPurchase.description}
+                  </p>
+                )}
+                {reimbursedTotal > 0 && (
+                  <p className="text-[10px] text-emerald-700">
+                    Reimbursed: -{formatCurrency(reimbursedTotal, userRegion.currency)}
                   </p>
                 )}
               </div>
