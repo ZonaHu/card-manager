@@ -503,6 +503,27 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                     </div>
                   </button>
 
+                  <button
+                    onClick={async () => {
+                      setShowMenu(false);
+                      setSyncBanner({ show: true, message: 'Creating backup…', type: 'info' });
+                      try {
+                        await apiCall('/api/backup/run', { method: 'POST' });
+                        setSyncBanner({ show: true, message: 'Backup created.', type: 'success' });
+                        setTimeout(() => setSyncBanner(null), 4000);
+                      } catch (e: any) {
+                        setSyncBanner({ show: true, message: `Backup failed: ${e.message}`, type: 'error' });
+                      }
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <Download size={16} className="text-blue-600" />
+                    <div>
+                      <div className="font-medium">Run Backup Now</div>
+                      <div className="text-sm text-gray-500">Snapshot the local database</div>
+                    </div>
+                  </button>
+
                   <div className="px-4 py-2 border-t border-gray-100"></div>
 
                   <button

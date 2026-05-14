@@ -51,6 +51,7 @@ const plaidRoutes = require('./routes/plaid');
 const cardRoutes = require('./routes/cards');
 const transactionRoutes = require('./routes/transactions');
 const ruleRoutes = require('./routes/rules');
+const backupRoutes = require('./routes/backup');
 const { loadRules, applyRules } = require('./lib/categorizationRules');
 const plaidItems = require('./lib/plaidItems');
 const { loadSplitRules, findMatchingRule, applySplit } = require('./lib/splitRules');
@@ -220,6 +221,7 @@ function makeApp(db, opts = {}) {
   app.use('/', cardRoutes(sharedDeps));
   app.use('/api/transactions', transactionRoutes(sharedDeps));
   app.use('/api/categorization-rules', ruleRoutes(sharedDeps));
+  app.use('/api/backup', backupRoutes(sharedDeps));
 
   app.get('/health', (req, res) => {
     db.get('SELECT 1 AS ok', [], (err) => {
