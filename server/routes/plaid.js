@@ -362,8 +362,8 @@ module.exports = function makePlaidRoutes(deps) {
     let pageGuard = 0;
 
     while (hasMore) {
-      if (++pageGuard > 50) {
-        logger.warn('transactionsSync paging guard reached', { pages: pageGuard });
+      if (++pageGuard > 200) {
+        logger.warn('transactionsSync paging guard reached', { pages: pageGuard, userId, itemPk });
         break;
       }
       const req = { access_token: accessToken, count: 500 };
@@ -375,6 +375,10 @@ module.exports = function makePlaidRoutes(deps) {
       removed.push(...d.removed);
       hasMore = !!d.has_more;
       nextCursor = d.next_cursor || nextCursor;
+    }
+
+    if (added.length > 10000) {
+      logger.warn('large backfill', { added: added.length, userId, itemPk });
     }
 
     let newTransactions = 0;

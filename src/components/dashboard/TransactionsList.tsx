@@ -84,6 +84,9 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
               <p className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {transaction.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(transaction.amount), userRegion.currency)}
               </p>
+              {transaction.transaction_currency && card?.currency && transaction.transaction_currency !== card.currency && (
+                <p className="text-[10px] text-gray-400">in {transaction.transaction_currency}</p>
+              )}
               <p className="text-sm text-gray-500">{transaction.date}</p>
             </div>
           </button>
