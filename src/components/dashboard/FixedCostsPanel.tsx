@@ -8,6 +8,10 @@ interface Props {
   transactions: Transaction[]; // pass the FULL history; util filters to current+prior month internally
   currentMonth: string;        // YYYY-MM
   userRegion: UserRegion;
+  // Called with a search query (vendor label substring) when the user clicks a
+  // row. Parent should drop the query into the transactions search and scroll
+  // there so the drill-down is visible.
+  onItemClick?: (query: string) => void;
 }
 
 const BUCKET_ICONS: Record<FixedCostBucket, React.ComponentType<{ size?: number; className?: string }>> = {
@@ -28,7 +32,14 @@ const BUCKET_TONES: Record<FixedCostBucket, string> = {
 // mobile) with a MoM delta per vendor so the user can spot a bill that crept
 // up. Hidden when none of the detection patterns match — keeps the dashboard
 // quiet for users without any of these vendors.
-export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, userRegion }) => {
+// Map each vendor label back to the substring most likely to filter the
+// transactions list well. e.g. "Chexy (Rent)" → "chexy"; the parenthetical
+// is a UI affordance, not part of the description.
+function searchKeyFor(label: string): string {
+  return label.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, userRegion, onItemClick }) => {
   const summary = React.useMemo(
     () => summarizeFixedCosts(transactions, currentMonth),
     [transactions, currentMonth]
@@ -73,10 +84,16 @@ export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, u
             e.delta < 0 ? 'text-emerald-600' :
             'text-gray-400';
           const isMissing = e.currentAmount === 0 && e.priorAmount > 0;
+          const clickable = !!onItemClick;
+          const Row = clickable ? 'button' : 'div';
           return (
-            <div
+            <Row
               key={e.label}
-              className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50"
+              type={clickable ? 'button' : undefined}
+              onClick={clickable ? () => onItemClick!(searchKeyFor(e.label)) : undefined}
+              className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border border-gray-100 ${
+                clickable ? 'hover:bg-gray-50 hover:border-indigo-200 cursor-pointer transition-colors' : ''
+              }`}
             >
               <div className={`p-2 rounded-lg ${BUCKET_TONES[e.bucket]}`}>
                 <Icon size={16} />
@@ -100,7 +117,7 @@ export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, u
                     : `${e.delta > 0 ? '+' : '−'}${formatCurrency(Math.abs(e.delta), c)}`}
                 </div>
               </div>
-            </div>
+            </Row>
           );
         })}
       </div>

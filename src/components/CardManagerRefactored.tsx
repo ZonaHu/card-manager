@@ -781,14 +781,27 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
         </div>
 
         {/* Fixed monthly obligations + e-Transfer activity, side-by-side on
-            wide screens. Both panels self-hide when there's nothing to show. */}
+            wide screens. Both panels self-hide when there's nothing to show.
+            Clicking a row drills down: drops a search filter into the txn list
+            below and scrolls there so the user can see the underlying rows. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <FixedCostsPanel
             transactions={transactions}
             currentMonth={currentMonth}
             userRegion={userRegion}
+            onItemClick={(query) => {
+              setSearchQuery(query);
+              scrollToTransactions();
+            }}
           />
-          <ETransferPanel transactions={monthlyData.transactions} userRegion={userRegion} />
+          <ETransferPanel
+            transactions={monthlyData.transactions}
+            userRegion={userRegion}
+            onItemClick={(query) => {
+              setSearchQuery(query);
+              scrollToTransactions();
+            }}
+          />
         </div>
 
         {/* MoM / YoY spending comparison */}
