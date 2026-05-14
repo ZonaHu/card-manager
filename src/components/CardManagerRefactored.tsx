@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { CreditCard, Plus, Menu, X, ExternalLink, Sparkles, LogOut, Zap, TrendingUp, Edit3, Trash2, AlertCircle } from 'lucide-react';
+import { CreditCard, Plus, Menu, X, ExternalLink, Sparkles, LogOut, Zap, TrendingUp, Edit3, Trash2, AlertCircle, Globe, HelpCircle, Check, Search, Download } from 'lucide-react';
 
 // Types and constants
-import type { Card, Transaction, MonthlyData, User, UserRegion, TransactionFilter, TransactionSort } from '../types';
+import type { Card, CardCategory, Transaction, MonthlyData, User, UserRegion, TransactionFilter, TransactionSort } from '../types';
 import { CATEGORIES, getCategoryColor } from '../constants/categories';
 
 // Hooks and services
@@ -10,13 +10,29 @@ import { useApi } from '../hooks/useApi';
 import { CardService } from '../services/cardService';
 import { TransactionService } from '../services/transactionService';
 
+// Pure spend-calc lives in utils so it can be unit-tested.
+import { calculateMonthlyData } from '../utils/spendCalculation';
+import { transactionsToCsv, downloadCsv } from '../utils/csvExport';
+
 // Components
 import { FinancialOverview } from './dashboard/FinancialOverview';
 import { CategoryBreakdown } from './dashboard/CategoryBreakdown';
 import { TransactionFilters } from './dashboard/TransactionFilters';
 import { TransactionsList } from './dashboard/TransactionsList';
+import { BudgetPanel } from './dashboard/BudgetPanel';
+import { RecurringList } from './dashboard/RecurringList';
+import { RulesPanel } from './dashboard/RulesPanel';
+import { SpendingComparison } from './dashboard/SpendingComparison';
+import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
+// Recharts is heavy — lazy-load the chart so the initial bundle stays lean.
+const NetWorthChart = React.lazy(() =>
+  import('./dashboard/NetWorthChart').then(m => ({ default: m.NetWorthChart }))
+);
 import { TransactionEditModal } from './forms/TransactionEditModal';
+import { CardDetailModal } from './cards/CardDetailModal';
+import About from './About';
 import PlaidLink from './PlaidLink';
+import PlaidUpdateLink from './PlaidUpdateLink';
 import RegionSelector from './RegionSelector';
 
 // Utilities
@@ -32,12 +48,15 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   // State
   const [cards, setCards] = useState<Card[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [cardCategories, setCardCategories] = useState<Record<string, any>>({});
+  const [cardCategories, setCardCategories] = useState<Record<string, CardCategory>>({});
   const [showAddCard, setShowAddCard] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showPlaidLink, setShowPlaidLink] = useState(false);
   const [showRegionSelector, setShowRegionSelector] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState('2025-08');
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [loading, setLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -48,7 +67,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [showAddCardOptions, setShowAddCardOptions] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showTransactionEditModal, setShowTransactionEditModal] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [showCardDetail, setShowCardDetail] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [syncBanner, setSyncBanner] = useState<{show: boolean, message: string, type: 'success' | 'error' | 'info'} | null>(null);
+  const [reauthTarget, setReauthTarget] = useState<{ itemId: string; institutionName: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
+  const transactionsRef = useRef<HTMLDivElement>(null);
 
   // Hooks and services
   const { apiCall, error, setError, loading: apiLoading } = useApi(token);
@@ -68,53 +94,25 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       }));
   }, [cards, categoryFilter, cardCategories]);
 
-  const monthlyData = useMemo<MonthlyData>(() => {
-    let filteredTransactions = transactions.filter(t => 
-      t.date.startsWith(currentMonth)
-    );
-
-    // Apply category filter
-    if (transactionFilter !== 'all') {
-      filteredTransactions = filteredTransactions.filter(t => t.category === transactionFilter);
+  // After the first successful data load, jump to the most recent month that
+  // actually has transactions. Default-to-today is awkward because the start of
+  // a new month often shows empty totals before any txns post.
+  const didAutoJump = useRef(false);
+  useEffect(() => {
+    if (didAutoJump.current) return;
+    if (transactions.length === 0) return;
+    const months = new Set(transactions.map(t => t.date.slice(0, 7)));
+    const latest = Array.from(months).sort().reverse()[0];
+    if (latest && latest !== currentMonth) {
+      setCurrentMonth(latest);
     }
+    didAutoJump.current = true;
+  }, [transactions]);
 
-    // Apply sorting
-    switch (transactionSort) {
-      case 'oldest':
-        filteredTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        break;
-      case 'highest':
-        filteredTransactions.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-        break;
-      case 'lowest':
-        filteredTransactions.sort((a, b) => Math.abs(a.amount) - Math.abs(b.amount));
-        break;
-      default: // newest
-        filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }
-
-    const spending = filteredTransactions
-      .filter(t => t.amount < 0)
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    
-    const income = filteredTransactions
-      .filter(t => t.amount > 0)
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const byCategory = filteredTransactions.reduce((acc, t) => {
-      if (t.amount < 0) {
-        acc[t.category] = (acc[t.category] || 0) + Math.abs(t.amount);
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-    return {
-      transactions: filteredTransactions,
-      spending,
-      income,
-      byCategory
-    };
-  }, [transactions, currentMonth, transactionFilter, transactionSort]);
+  const monthlyData = useMemo<MonthlyData>(
+    () => calculateMonthlyData({ transactions, cards, currentMonth, transactionFilter, transactionSort }),
+    [transactions, cards, currentMonth, transactionFilter, transactionSort]
+  );
 
   // Event handlers
   const loadData = async () => {
@@ -162,6 +160,18 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
     setShowTransactionEditModal(true);
   };
 
+  const handleCardClick = (card: Card) => {
+    setSelectedCard(card);
+    setShowCardDetail(true);
+  };
+
+  const scrollToTransactions = () => {
+    transactionsRef.current?.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'start' 
+    });
+  };
+
   const updateTransaction = async (transactionData: any) => {
     try {
       const updatedTransaction = await transactionService.updateTransaction(transactionData);
@@ -203,14 +213,28 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       console.log('Starting sync transactions:', { type, months });
       setLoading(true);
       setError('');
+      setSyncBanner({ show: true, message: 'Syncing transactions...', type: 'info' });
       
       const result = await transactionService.syncTransactions(type, months);
       console.log('Sync result:', result);
       
       // Reload data to show new transactions
       await loadData();
+      
+      // Show success message
+      const syncType = type === 'all' ? 'Full sync' : 'Quick sync';
+      const transactionCount = result.newTransactions || 0;
+      setSyncBanner({ 
+        show: true, 
+        message: `${syncType} successful! ${transactionCount} transactions ${transactionCount === 1 ? 'added' : 'added'}.`, 
+        type: 'success' 
+      });
+      
+      // Auto-hide banner after 5 seconds
+      setTimeout(() => setSyncBanner(null), 5000);
     } catch (err: any) {
       console.error('Sync error:', err);
+      setSyncBanner({ show: true, message: `Sync failed: ${err.message}`, type: 'error' });
       setError(err.message);
     } finally {
       setLoading(false);
@@ -221,6 +245,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
     try {
       setLoading(true);
       setError('');
+      setSyncBanner({ show: true, message: 'Fixing categories...', type: 'info' });
       
       const result = await transactionService.recategorizeTransactions();
       
@@ -228,7 +253,19 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       await loadData();
       
       console.log('Recategorization result:', result);
+      
+      // Show success message
+      const updatedCount = result.updatedTransactions || 0;
+      setSyncBanner({ 
+        show: true, 
+        message: `Categories updated! ${updatedCount} transaction${updatedCount !== 1 ? 's' : ''} recategorized.`, 
+        type: 'success' 
+      });
+      
+      // Auto-hide banner after 5 seconds
+      setTimeout(() => setSyncBanner(null), 5000);
     } catch (err: any) {
+      setSyncBanner({ show: true, message: `Category fix failed: ${err.message}`, type: 'error' });
       setError(err.message);
     } finally {
       setLoading(false);
@@ -301,7 +338,33 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Card Manager</h1>
-              <p className="text-gray-600">Welcome back, {user.name}!</p>
+              <p className="text-gray-600">
+                Welcome back, {user.name}!
+                {(() => {
+                  // Surface the most recent sync state. If any connected card failed
+                  // its last attempt, prefer showing the failure (with reason) over
+                  // the older "synced" timestamp so the user knows data is stale.
+                  const failing = cards.filter(c =>
+                    c.last_sync_error && (!c.last_synced_at ||
+                      (c.last_sync_attempt_at && c.last_sync_attempt_at > (c.last_synced_at || ''))));
+                  if (failing.length > 0) {
+                    const codes = Array.from(new Set(failing.map(c => c.last_sync_error).filter(Boolean)));
+                    return <span className="text-xs text-amber-600 ml-2">· {failing.length} card{failing.length > 1 ? 's' : ''} not syncing ({codes.slice(0, 2).join(', ')})</span>;
+                  }
+                  const stamps = cards
+                    .map(c => c.last_synced_at)
+                    .filter(Boolean) as string[];
+                  if (stamps.length === 0) return null;
+                  const latest = stamps.sort().slice(-1)[0];
+                  const ms = Date.now() - new Date(latest + 'Z').getTime();
+                  const mins = Math.round(ms / 60000);
+                  const label = mins < 1 ? 'just now'
+                    : mins < 60 ? `${mins}m ago`
+                    : mins < 60 * 24 ? `${Math.round(mins / 60)}h ago`
+                    : `${Math.round(mins / 60 / 24)}d ago`;
+                  return <span className="text-xs text-gray-500 ml-2">· Synced {label}</span>;
+                })()}
+              </p>
             </div>
           </div>
 
@@ -414,6 +477,36 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
                   <button
                     onClick={() => {
+                      setShowRegionSelector(true);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <Globe size={16} className="text-purple-600" />
+                    <div>
+                      <div className="font-medium">Change Region</div>
+                      <div className="text-sm text-gray-500">Update country and currency ({userRegion.country} - {userRegion.currency})</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowAbout(true);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <HelpCircle size={16} className="text-gray-600" />
+                    <div>
+                      <div className="font-medium">About & Security</div>
+                      <div className="text-sm text-gray-500">Privacy, security, and how it works</div>
+                    </div>
+                  </button>
+
+                  <div className="px-4 py-2 border-t border-gray-100"></div>
+
+                  <button
+                    onClick={() => {
                       onLogout();
                       setShowMenu(false);
                     }}
@@ -431,6 +524,97 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           </div>
         </div>
 
+        {/* Reauth Banner — shown when any Plaid item needs credential update */}
+        {(() => {
+          const needsReauth = cards.filter(c => c.needs_reauth && c.item_id);
+          if (needsReauth.length === 0) return null;
+          const byItem = new Map<string, { itemId: string; institutionName: string; accounts: string[] }>();
+          needsReauth.forEach(c => {
+            const itemId = c.item_id!;
+            if (!byItem.has(itemId)) {
+              byItem.set(itemId, {
+                itemId,
+                institutionName: c.institution_name || 'your bank',
+                accounts: []
+              });
+            }
+            byItem.get(itemId)!.accounts.push(`${c.name} ••••${c.last_four}`);
+          });
+          return (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-amber-900 mb-2">
+                    {byItem.size === 1 ? 'One bank needs' : `${byItem.size} banks need`} reauthentication
+                  </p>
+                  <p className="text-sm text-amber-800 mb-3">
+                    Plaid returned a credential/MFA error. Transaction sync is paused for these accounts until you reauthorize.
+                  </p>
+                  <div className="space-y-2">
+                    {Array.from(byItem.values()).map(item => (
+                      <div key={item.itemId} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-amber-200">
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-900">{item.institutionName}</div>
+                          <div className="text-gray-500 text-xs">{item.accounts.join(', ')}</div>
+                        </div>
+                        <button
+                          onClick={() => setReauthTarget({ itemId: item.itemId, institutionName: item.institutionName })}
+                          className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700"
+                        >
+                          Reconnect
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Sync Banner */}
+        {syncBanner?.show && (
+          <div className={`border rounded-lg p-4 mb-6 flex items-center justify-between ${
+            syncBanner.type === 'success' ? 'bg-green-50 border-green-200' :
+            syncBanner.type === 'error' ? 'bg-red-50 border-red-200' :
+            'bg-blue-50 border-blue-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              {syncBanner.type === 'success' && (
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <Check size={14} className="text-white" />
+                </div>
+              )}
+              {syncBanner.type === 'error' && (
+                <AlertCircle className="w-6 h-6 text-red-500" />
+              )}
+              {syncBanner.type === 'info' && (
+                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm">i</span>
+                </div>
+              )}
+              <p className={`font-medium ${
+                syncBanner.type === 'success' ? 'text-green-800' :
+                syncBanner.type === 'error' ? 'text-red-800' :
+                'text-blue-800'
+              }`}>
+                {syncBanner.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setSyncBanner(null)}
+              className={`text-sm px-3 py-1 rounded-lg transition-colors ${
+                syncBanner.type === 'success' ? 'text-green-600 hover:bg-green-100' :
+                syncBanner.type === 'error' ? 'text-red-600 hover:bg-red-100' :
+                'text-blue-600 hover:bg-blue-100'
+              }`}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Error Display */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -446,7 +630,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <h2 className="text-xl font-semibold text-gray-900 mb-1">Welcome to Card Manager! 🎉</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-1">Welcome to Card Manager</h2>
                 <p className="text-gray-600 mb-3">
                   Get started by connecting your bank accounts to automatically import your cards and transactions.
                 </p>
@@ -468,6 +652,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           userRegion={userRegion}
           currentMonth={currentMonth}
           onMonthChange={setCurrentMonth}
+          onScrollToTransactions={scrollToTransactions}
         />
 
         {/* Cards Section */}
@@ -493,12 +678,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedCards.map(card => (
-                <div key={card.id} className={`bg-white rounded-xl p-6 shadow-lg border-l-4 ${card.categoryInfo?.color ? `border-${card.categoryInfo.color}-500` : 'border-gray-500'}`}>
+                <button
+                  key={card.id}
+                  onClick={() => handleCardClick(card)}
+                  className={`bg-white rounded-xl p-6 shadow-lg border-l-4 hover:shadow-xl transition-all cursor-pointer text-left ${card.categoryInfo?.color ? `border-${card.categoryInfo.color}-500` : 'border-gray-500'}`}
+                >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl" role="img" aria-label={card.categoryInfo?.label}>
-                        {card.categoryInfo?.icon || '💳'}
-                      </span>
+                      <CreditCard className="w-6 h-6 text-gray-500" />
                       <div>
                         <h3 className="font-semibold text-gray-900">{card.name}</h3>
                         <p className="text-sm text-gray-500">
@@ -511,7 +698,10 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                         <div className="w-2 h-2 bg-green-500 rounded-full" title="Connected to Plaid"></div>
                       )}
                       <button
-                        onClick={() => deleteCard(card.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteCard(card.id);
+                        }}
                         className="text-gray-400 hover:text-red-600 transition-colors"
                         title="Delete card"
                       >
@@ -548,11 +738,38 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                       <p className="text-xs text-gray-500">{card.categoryInfo.description}</p>
                     </div>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
         )}
+
+        <InvestmentEmptyHint cards={cards} transactions={transactions} />
+
+        {/* Insights row — net worth + budgets + recurring */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <React.Suspense fallback={
+            <div className="bg-white rounded-xl p-6 shadow-lg text-sm text-gray-400">Loading chart…</div>
+          }>
+            <NetWorthChart cards={cards} transactions={transactions} userRegion={userRegion} />
+          </React.Suspense>
+          <BudgetPanel byCategory={monthlyData.byCategory} userRegion={userRegion} />
+          <RecurringList transactions={transactions} userRegion={userRegion} />
+        </div>
+
+        {/* MoM / YoY spending comparison */}
+        <div className="mb-8">
+          <SpendingComparison
+            transactions={transactions}
+            cards={cards}
+            currentMonth={currentMonth}
+            userRegion={userRegion}
+          />
+        </div>
+
+        {/* Sync rules — categorization overrides + auto-split. Collapsed by
+            default; surfaces what's running silently during Plaid sync. */}
+        <RulesPanel cards={cards} />
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -568,8 +785,8 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           </div>
 
           {/* Recent Transactions */}
-          <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
+          <div ref={transactionsRef} className="lg:col-span-2 bg-white rounded-xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-semibold text-gray-900">Recent Transactions</h2>
                 {transactionFilter !== 'all' && (
@@ -581,21 +798,51 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                       className="text-xs text-gray-500 hover:text-red-600"
                       title="Clear filter"
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   </div>
                 )}
               </div>
-              <TransactionFilters
-                transactionFilter={transactionFilter}
-                transactionSort={transactionSort}
-                onFilterChange={setTransactionFilter}
-                onSortChange={setTransactionSort}
-              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search…"
+                    className="pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const filtered = searchQuery.trim()
+                      ? monthlyData.transactions.filter(t =>
+                          (t.description ?? '').toLowerCase().includes(searchQuery.toLowerCase().trim()))
+                      : monthlyData.transactions;
+                    downloadCsv(`transactions-${currentMonth}.csv`, transactionsToCsv(filtered, cards));
+                  }}
+                  className="flex items-center gap-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg"
+                  title="Export current view to CSV"
+                >
+                  <Download size={14} /> CSV
+                </button>
+                <TransactionFilters
+                  transactionFilter={transactionFilter}
+                  transactionSort={transactionSort}
+                  onFilterChange={setTransactionFilter}
+                  onSortChange={setTransactionSort}
+                />
+              </div>
             </div>
-            
+
             <TransactionsList
-              transactions={monthlyData.transactions}
+              transactions={
+                searchQuery.trim()
+                  ? monthlyData.transactions.filter(t =>
+                      (t.description ?? '').toLowerCase().includes(searchQuery.toLowerCase().trim()))
+                  : monthlyData.transactions
+              }
               cards={cards}
               userRegion={userRegion}
               onTransactionClick={handleTransactionClick}
@@ -610,6 +857,19 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             onSuccess={handlePlaidSuccess}
             onClose={() => setShowPlaidLink(false)}
             isNewUser={isNewUser}
+          />
+        )}
+
+        {reauthTarget && (
+          <PlaidUpdateLink
+            itemId={reauthTarget.itemId}
+            institutionName={reauthTarget.institutionName}
+            onSuccess={() => {
+              setReauthTarget(null);
+              setSyncBanner({ show: true, message: `${reauthTarget.institutionName} reconnected. Syncing…`, type: 'info' });
+              loadData();
+            }}
+            onExit={() => setReauthTarget(null)}
           />
         )}
 
@@ -660,6 +920,23 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             }}
           />
         )}
+
+        {showCardDetail && selectedCard && (
+          <CardDetailModal
+            card={selectedCard}
+            transactions={transactions}
+            userRegion={userRegion}
+            onClose={() => {
+              setShowCardDetail(false);
+              setSelectedCard(null);
+            }}
+            onTransactionClick={handleTransactionClick}
+          />
+        )}
+
+        {showAbout && (
+          <About onClose={() => setShowAbout(false)} />
+        )}
       </div>
     </div>
   );
@@ -669,7 +946,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 const CardForm: React.FC<{ 
   onSubmit: (data: any) => void;
   onCancel: () => void;
-  cardCategories: Record<string, any>;
+  cardCategories: Record<string, CardCategory>;
 }> = ({ onSubmit, onCancel, cardCategories }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState('credit');
@@ -689,7 +966,7 @@ const CardForm: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-md">
         <h2 className="text-xl font-semibold mb-4">Add Card</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -724,7 +1001,7 @@ const CardForm: React.FC<{
             onChange={(e) => setCategory(e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-lg"
           >
-            {Object.entries(cardCategories).map(([key, cat]: [string, any]) => (
+            {Object.entries(cardCategories).map(([key, cat]) => (
               <option key={key} value={key}>{cat.label}</option>
             ))}
           </select>
@@ -767,7 +1044,7 @@ const TransactionForm: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-md">
         <h2 className="text-xl font-semibold mb-4">Add Transaction</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -845,7 +1122,7 @@ const AddCardOptions: React.FC<{
   onClose: () => void;
 }> = ({ onConnectBank, onAddManually, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-md">
         <h3 className="text-xl font-semibold mb-2 text-gray-900">Add Card or Account</h3>
         <p className="text-gray-600 mb-6">Choose how you'd like to add your financial account</p>
