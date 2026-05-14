@@ -21,6 +21,7 @@ import { TransactionFilters } from './dashboard/TransactionFilters';
 import { TransactionsList } from './dashboard/TransactionsList';
 import { BudgetPanel } from './dashboard/BudgetPanel';
 import { RecurringList } from './dashboard/RecurringList';
+import { ETransferPanel } from './dashboard/ETransferPanel';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
@@ -776,6 +777,11 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           </React.Suspense>
           <BudgetPanel byCategory={monthlyData.byCategory} userRegion={userRegion} />
           <RecurringList transactions={transactions} userRegion={userRegion} />
+        </div>
+
+        {/* E-Transfer activity — separate from spend/income totals */}
+        <div className="mb-8">
+          <ETransferPanel transactions={monthlyData.transactions} userRegion={userRegion} />
         </div>
 
         {/* MoM / YoY spending comparison */}
