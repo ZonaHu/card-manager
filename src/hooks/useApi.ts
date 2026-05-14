@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { ApiResponse } from '../types';
+import { API_BASE_URL } from '../config/api';
 
 interface UseApiOptions {
   baseURL?: string;
@@ -10,7 +11,7 @@ export const useApi = (token: string, options: UseApiOptions = {}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
-  const baseURL = options.baseURL || 'http://localhost:3001';
+  const baseURL = options.baseURL || API_BASE_URL;
 
   const apiCall = useCallback(async <T = any>(
     url: string, 
@@ -22,17 +23,21 @@ export const useApi = (token: string, options: UseApiOptions = {}) => {
     try {
       const response = await fetch(`${baseURL}${url}`, {
         ...requestOptions,
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...options.defaultHeaders,
           ...requestOptions.headers
         }
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Something went wrong');
+        const errorData = await response.json().catch(() => ({}));
+        const rid = response.headers.get('X-Request-ID');
+        throw new Error(errorData.error
+          ? `${errorData.error}${rid ? ` (ref ${rid})` : ''}`
+          : 'Something went wrong');
       }
 
       const data = await response.json();

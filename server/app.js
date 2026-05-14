@@ -15,6 +15,7 @@ const cookieParser = require('cookie-parser');
 const { encrypt: encryptSecret, decrypt: decryptSecret } = require('./utils/crypto');
 const { sendServerError, sendClientError } = require('./utils/errors');
 const logger = require('./utils/logger');
+const { requestId } = require('./lib/requestId');
 
 const {
   CARD_CATEGORIES,
@@ -64,9 +65,21 @@ function makeApp(db, opts = {}) {
 
   // ----- Middleware -----
   app.use(helmet({
-    contentSecurityPolicy: IS_PROD ? undefined : false,
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        // Vite dev injects inline scripts via HMR — relax script-src in dev only.
+        // Production builds have no inline scripts, so strict same-origin.
+        'script-src': IS_PROD ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'connect-src': ["'self'", 'https://*.plaid.com', 'https:'],
+        'img-src': ["'self'", 'data:', 'https:'],
+        'frame-src': ['https://cdn.plaid.com']
+      }
+    },
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
+  app.use(requestId);
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || FRONTEND_URL).split(',').map(s => s.trim());
   app.use(cors({ origin: allowedOrigins, credentials: true }));
 
