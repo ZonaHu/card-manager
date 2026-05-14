@@ -1,211 +1,153 @@
 const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
-const { mapPlaidCategoryToUserFriendly } = require('../config/categories');
 
-const router = express.Router();
+// Mounted at /api/transactions
+module.exports = function makeTransactionRoutes(deps) {
+  const { db, authenticateToken, sendServerError } = deps;
+  const router = express.Router();
 
-// Database will be injected when routes are setup
-let db;
+  // Paginated transactions. Supports filtering by month (YYYY-MM) and a hard limit
+  // so the dashboard doesn't pull the entire history on every load.
+  //   GET /api/transactions?month=2026-04
+  //   GET /api/transactions?limit=500&offset=0
+  router.get('/', authenticateToken, (req, res) => {
+    const month = typeof req.query.month === 'string' && /^\d{4}-\d{2}$/.test(req.query.month)
+      ? req.query.month
+      : null;
+    const limitRaw = parseInt(req.query.limit, 10);
+    const offsetRaw = parseInt(req.query.offset, 10);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 5000) : 5000;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
 
-const setupRoutes = (database) => {
-  db = database;
-  return router;
-};
-
-// GET /api/transactions
-router.get('/', authenticateToken, (req, res) => {
-  db.all(
-    'SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC, id DESC',
-    [req.user.userId],
-    (err, transactions) => {
-      if (err) {
-        return res.status(500).json({ error: 'Server error' });
-      }
-      res.json(transactions);
+    const params = [req.user.userId];
+    let where = 'WHERE user_id = ?';
+    if (month) {
+      where += ' AND date >= ? AND date < ?';
+      const [y, m] = month.split('-').map(Number);
+      const start = `${y}-${String(m).padStart(2, '0')}-01`;
+      const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      params.push(start, nextMonth);
     }
-  );
-});
+    params.push(limit, offset);
 
-// POST /api/transactions
-router.post('/', authenticateToken, (req, res) => {
-  const { cardId, amount, description, category, date } = req.body;
-
-  if (!cardId || !amount || !description || !category || !date) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  // Verify the card belongs to the user
-  db.get('SELECT * FROM cards WHERE id = ? AND user_id = ?', [cardId, req.user.userId], (err, card) => {
-    if (err) {
-      return res.status(500).json({ error: 'Server error' });
-    }
-
-    if (!card) {
-      return res.status(404).json({ error: 'Card not found' });
-    }
-
-    db.run(
-      'INSERT INTO transactions (user_id, card_id, amount, description, category, date) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.userId, cardId, amount, description, category, date],
-      function(err) {
-        if (err) {
-          return res.status(500).json({ error: 'Server error' });
-        }
-
-        db.get('SELECT * FROM transactions WHERE id = ?', [this.lastID], (err, transaction) => {
-          if (err) {
-            return res.status(500).json({ error: 'Server error' });
-          }
-          res.status(201).json(transaction);
-        });
+    db.all(
+      `SELECT * FROM transactions ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
+      params,
+      (err, transactions) => {
+        if (err) return sendServerError(res, err);
+        res.json(transactions);
       }
     );
   });
-});
 
-// PUT /api/transactions/:id
-router.put('/:id', authenticateToken, (req, res) => {
-  console.log(`PUT /api/transactions/${req.params.id} called by user ${req.user.userId}`);
-  const transactionId = req.params.id;
-  const { amount, description, category } = req.body;
-
-  if (!amount || !description || !category) {
-    return res.status(400).json({ error: 'Amount, description, and category are required' });
-  }
-
-  // First verify the transaction belongs to the user
-  db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ?', [transactionId, req.user.userId], (err, transaction) => {
-    if (err) {
-      return res.status(500).json({ error: 'Server error' });
+  router.post('/', authenticateToken, (req, res) => {
+    const { cardId, amount, description, category, date } = req.body;
+    if (!cardId || !amount || !description || !category || !date) {
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
-    if (!transaction) {
-      return res.status(404).json({ error: 'Transaction not found' });
+    // Verify the card belongs to the user before letting them attach a txn to it.
+    db.get('SELECT id FROM cards WHERE id = ? AND user_id = ?',
+      [cardId, req.user.userId],
+      (err, card) => {
+        if (err) return sendServerError(res, err);
+        if (!card) return res.status(404).json({ error: 'Card not found' });
+
+        db.run(
+          'INSERT INTO transactions (user_id, card_id, amount, description, category, date) VALUES (?, ?, ?, ?, ?, ?)',
+          [req.user.userId, cardId, amount, description, category, date],
+          function (insertErr) {
+            if (insertErr) return sendServerError(res, insertErr);
+            db.get('SELECT * FROM transactions WHERE id = ?', [this.lastID],
+              (getErr, transaction) => {
+                if (getErr) return sendServerError(res, getErr);
+                res.status(201).json(transaction);
+              });
+          }
+        );
+      }
+    );
+  });
+
+  // Link or unlink a positive transaction to the purchase it reimburses.
+  //   POST /api/transactions/123/reimburses  body: { purchaseId: 456 }   → link
+  //   POST /api/transactions/123/reimburses  body: { purchaseId: null }  → unlink
+  //
+  // Requires: reimbursement is positive, target is negative, both belong to the
+  // same user, no self-link. Returns the updated reimbursement row.
+  router.post('/:id/reimburses', authenticateToken, (req, res) => {
+    const reimbursementId = parseInt(req.params.id, 10);
+    if (Number.isNaN(reimbursementId)) return res.status(400).json({ error: 'Invalid transaction id' });
+    const { purchaseId } = req.body || {};
+
+    if (purchaseId === null || purchaseId === undefined) {
+      db.run(
+        'UPDATE transactions SET reimburses_id = NULL WHERE id = ? AND user_id = ?',
+        [reimbursementId, req.user.userId],
+        function (err) {
+          if (err) return sendServerError(res, err);
+          if (this.changes === 0) return res.status(404).json({ error: 'Transaction not found' });
+          db.get('SELECT * FROM transactions WHERE id = ?', [reimbursementId],
+            (e, row) => e ? sendServerError(res, e) : res.json(row));
+        }
+      );
+      return;
     }
 
-    // Update the transaction
+    const pid = parseInt(purchaseId, 10);
+    if (Number.isNaN(pid) || pid === reimbursementId) {
+      return res.status(400).json({ error: 'Invalid purchase id' });
+    }
+
+    db.all(
+      'SELECT id, amount FROM transactions WHERE id IN (?, ?) AND user_id = ?',
+      [reimbursementId, pid, req.user.userId],
+      (err, rows) => {
+        if (err) return sendServerError(res, err);
+        if (rows.length !== 2) return res.status(404).json({ error: 'Transaction not found' });
+        const reimb = rows.find(r => r.id === reimbursementId);
+        const purchase = rows.find(r => r.id === pid);
+        if (!reimb || reimb.amount <= 0) {
+          return res.status(400).json({ error: 'Reimbursement must be a positive transaction' });
+        }
+        if (!purchase || purchase.amount >= 0) {
+          return res.status(400).json({ error: 'Target must be a purchase (negative amount)' });
+        }
+        db.run(
+          'UPDATE transactions SET reimburses_id = ? WHERE id = ? AND user_id = ?',
+          [pid, reimbursementId, req.user.userId],
+          function (upErr) {
+            if (upErr) return sendServerError(res, upErr);
+            db.get('SELECT * FROM transactions WHERE id = ?', [reimbursementId],
+              (gErr, row) => gErr ? sendServerError(res, gErr) : res.json(row));
+          }
+        );
+      }
+    );
+  });
+
+  router.put('/:id', authenticateToken, (req, res) => {
+    const transactionId = parseInt(req.params.id, 10);
+    if (Number.isNaN(transactionId)) return res.status(400).json({ error: 'Invalid transaction id' });
+
+    const { amount, description, category } = req.body;
+    if (!amount || !description || !category) {
+      return res.status(400).json({ error: 'Amount, description, and category are required' });
+    }
+
     db.run(
       'UPDATE transactions SET amount = ?, description = ?, category = ? WHERE id = ? AND user_id = ?',
       [amount, description, category, transactionId, req.user.userId],
-      function(err) {
-        if (err) {
-          return res.status(500).json({ error: 'Server error' });
-        }
+      function (err) {
+        if (err) return sendServerError(res, err);
+        if (this.changes === 0) return res.status(404).json({ error: 'Transaction not found' });
 
-        if (this.changes === 0) {
-          return res.status(404).json({ error: 'Transaction not found' });
-        }
-
-        // Return the updated transaction
-        db.get('SELECT * FROM transactions WHERE id = ?', [transactionId], (err, updatedTransaction) => {
-          if (err) {
-            return res.status(500).json({ error: 'Server error' });
-          }
-          res.json(updatedTransaction);
+        db.get('SELECT * FROM transactions WHERE id = ?', [transactionId], (err2, updated) => {
+          if (err2) return sendServerError(res, err2);
+          res.json(updated);
         });
       }
     );
   });
-});
 
-// POST /api/transactions/recategorize
-router.post('/recategorize', authenticateToken, async (req, res) => {
-  console.log('Re-categorizing transactions for user:', req.user.userId);
-  
-  try {
-    // Get all Plaid-connected access tokens for this user
-    const accessTokens = await new Promise((resolve, reject) => {
-      db.all(
-        'SELECT DISTINCT access_token FROM cards WHERE user_id = ? AND access_token IS NOT NULL',
-        [req.user.userId],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows.map(row => row.access_token));
-        }
-      );
-    });
-
-    console.log(`Found ${accessTokens.length} Plaid access tokens`);
-
-    let updatedCount = 0;
-    const { PlaidApi, Configuration, PlaidEnvironments } = require('plaid');
-    
-    const configuration = new Configuration({
-      basePath: PlaidEnvironments.sandbox,
-      baseOptions: {
-        headers: {
-          'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-          'PLAID-SECRET': process.env.PLAID_SECRET,
-        },
-      },
-    });
-    const plaidClient = new PlaidApi(configuration);
-
-    // Process each access token
-    for (const access_token of accessTokens) {
-      try {
-        // Get transactions from Plaid for the last 30 days
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 30);
-        const endDate = new Date();
-
-        const request = {
-          access_token,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0],
-          count: 500,
-          offset: 0,
-        };
-
-        const plaidTransactionsResponse = await plaidClient.transactionsGet(request);
-        const plaidTransactions = plaidTransactionsResponse.data.transactions;
-
-        console.log(`Got ${plaidTransactions.length} transactions from Plaid for recategorization`);
-
-        // Update each transaction in our database
-        for (const plaidTransaction of plaidTransactions) {
-          // Find matching transaction in our database by Plaid transaction ID
-          const dbTransaction = await new Promise((resolve, reject) => {
-            db.get(
-              'SELECT * FROM transactions WHERE plaid_transaction_id = ? AND user_id = ?',
-              [plaidTransaction.transaction_id, req.user.userId],
-              (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-              }
-            );
-          });
-
-          if (dbTransaction) {
-            const newCategory = mapPlaidCategoryToUserFriendly(plaidTransaction);
-            console.log(`Updating transaction ${dbTransaction.id}: ${dbTransaction.category} → ${newCategory}`);
-            
-            await new Promise((resolve, reject) => {
-              db.run('UPDATE transactions SET category = ? WHERE id = ?', 
-                [newCategory, dbTransaction.id], 
-                function(err) {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-            updatedCount++;
-          }
-        }
-      } catch (error) {
-        console.error('Error recategorizing transactions for token:', error);
-      }
-    }
-
-    res.json({
-      message: `Successfully recategorized ${updatedCount} transactions`,
-      updated: updatedCount
-    });
-
-  } catch (error) {
-    console.error('Error in recategorize endpoint:', error);
-    res.status(500).json({ error: 'Server error during recategorization' });
-  }
-});
-
-module.exports = setupRoutes;
+  return router;
+};
