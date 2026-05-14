@@ -271,6 +271,38 @@ describe('calculateMonthlyData', () => {
     expect(r.depositAccountCashOutflow).toBe(50);
   });
 
+  it('routes e-Transfers into their own bucket and out of spending/income', () => {
+    const r = calc([
+      tx({ cardId: 1, amount: 200, date: '2026-04-10', description: 'INTERAC E-TRANSFER RECEIVE Foo', category: 'Other' }),
+      tx({ cardId: 1, amount: -50, date: '2026-04-11', description: 'INTERAC E-TRANSFER SEND Bar', category: 'Other' }),
+      tx({ cardId: 1, amount: -30, date: '2026-04-12', description: 'COFFEE', category: 'Food' })
+    ]);
+    expect(r.eTransfersIn).toBe(200);
+    expect(r.eTransfersOut).toBe(50);
+    expect(r.depositAccountSpending).toBe(30); // coffee only, no e-transfer pollution
+    expect(r.income).toBe(0);
+  });
+
+  it('subtracts a linked reimbursement from the original purchase spending', () => {
+    // $100 dinner on credit card; friend later e-transfers $40 with reimburses_id linked.
+    const dinner = tx({ cardId: 3, amount: -100, date: '2026-04-05', description: 'DINNER', category: 'Food' });
+    const reimbursement = tx({ cardId: 1, amount: 40, date: '2026-04-08', description: 'INTERAC E-TRANSFER RECEIVE Friend', category: 'Other' });
+    (reimbursement as any).reimburses_id = dinner.id;
+    const r = calc([dinner, reimbursement]);
+    expect(r.creditCardSpending).toBe(60);   // 100 - 40
+    expect(r.eTransfersIn).toBe(0);          // reimbursement isn't double-counted in e-transfer either
+    expect(r.income).toBe(0);
+    expect(r.reimbursementsApplied).toBe(40);
+  });
+
+  it('never lets a reimbursement push spending below zero', () => {
+    const dinner = tx({ cardId: 3, amount: -20, date: '2026-04-05', description: 'DINNER', category: 'Food' });
+    const reimbursement = tx({ cardId: 1, amount: 50, date: '2026-04-08', description: 'PAYBACK', category: 'Other' });
+    (reimbursement as any).reimburses_id = dinner.id;
+    const r = calc([dinner, reimbursement]);
+    expect(r.creditCardSpending).toBe(0);
+  });
+
   it('produces a byCategory breakdown over negative amounts only', () => {
     const r = calc([
       tx({ cardId: 3, amount: -40, date: '2026-04-05', category: 'Food' }),

@@ -57,6 +57,9 @@ export interface Transaction {
   pending?: boolean | number;
   transaction_currency?: string;
   original_amount?: number;
+  // ID of the purchase this transaction reimburses (set on positive entries
+  // when a friend pays back their share of an outlay).
+  reimburses_id?: number | null;
 }
 
 export interface MonthlyData {
@@ -68,6 +71,14 @@ export interface MonthlyData {
   income: number;
   byCategory: Record<string, number>;
   allTransactions?: Transaction[];
+  // E-Transfer breakdown — surfaced separately so users can see net Interac
+  // activity without it polluting spend/income totals.
+  eTransfersIn?: number;
+  eTransfersOut?: number;
+  // Total amount of reimbursements applied to spending this month (positive
+  // value; already subtracted from `spending`). Lets the UI show "Spent $X,
+  // reimbursed $Y, net $Z" so the headline number matches reality.
+  reimbursementsApplied?: number;
 }
 
 export interface UserRegion {

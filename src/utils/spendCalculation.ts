@@ -1,4 +1,5 @@
 import type { Card, MonthlyData, Transaction, TransactionFilter, TransactionSort } from '../types';
+import { isETransfer } from './eTransfer';
 
 // Match tolerances. Cross-bank posting can introduce small rounding / FX drift,
 // so allow $0.05 or 0.5% of the amount, whichever is larger. The date window
@@ -222,10 +223,30 @@ export function calculateMonthlyData({
   // excluded entirely from the spend/income aggregates.
   const washedIds = findWashedTransactionIds(filtered);
 
+  // Reimbursement index. Use the FULL transactions list (not just `filtered`)
+  // for the target lookup so a May reimbursement of an April purchase still
+  // resolves — though only reimbursements in the current month change the
+  // current month's spending. The target's contribution to spend is reduced
+  // by the reimbursement amount regardless of which month it sits in; we
+  // expose the in-month delta as reimbursementsApplied.
+  const reimbursementByTarget = new Map<number, number>();
+  let reimbursementsApplied = 0;
+  for (const t of filtered) {
+    if (t.amount > 0 && typeof t.reimburses_id === 'number') {
+      reimbursementByTarget.set(
+        t.reimburses_id,
+        (reimbursementByTarget.get(t.reimburses_id) || 0) + t.amount
+      );
+      reimbursementsApplied += t.amount;
+    }
+  }
+
   let creditCardSpending = 0;
   let depositAccountSpending = 0;
   let depositAccountCashOutflow = 0;
   let income = 0;
+  let eTransfersIn = 0;
+  let eTransfersOut = 0;
 
   for (const t of filtered) {
     // Pending transactions can be modified or removed by Plaid before they
@@ -243,9 +264,25 @@ export function calculateMonthlyData({
     const card = cards.find(c => c.id === cardId);
     const isCC = isCardCredit(card);
 
+    // Reimbursements (a positive entry linked to a purchase) are already
+    // accounted for against their target below. Skip them here BEFORE the
+    // e-transfer check so a friend's Interac payback doesn't show up in
+    // eTransfersIn AND reduce the purchase — that would double-count.
+    if (t.amount > 0 && typeof t.reimburses_id === 'number') continue;
+
+    // E-Transfers get tallied into their own bucket and DON'T touch spending
+    // or income. They show up in their own dashboard panel so the user can see
+    // net Interac flow without it polluting headline numbers.
+    if (isETransfer(t)) {
+      if (t.amount > 0) eTransfersIn += t.amount;
+      else eTransfersOut += Math.abs(t.amount);
+      continue;
+    }
+
     if (t.amount < 0) {
       if (isCC) {
-        creditCardSpending += Math.abs(t.amount);
+        const reimbursed = reimbursementByTarget.get(t.id) || 0;
+        creditCardSpending += Math.max(0, Math.abs(t.amount) - reimbursed);
         continue;
       }
       const amount = Math.abs(t.amount);
@@ -302,8 +339,9 @@ export function calculateMonthlyData({
         if (hasInvestmentSibling) continue;
       }
 
+      const reimbursed = reimbursementByTarget.get(t.id) || 0;
       depositAccountCashOutflow += amount;
-      depositAccountSpending += amount;
+      depositAccountSpending += Math.max(0, amount - reimbursed);
     } else if (t.amount > 0) {
       // Credit-card positives split into two kinds:
       //   "PAYMENT RECEIVED" / generic positive  → debt reduction, ignore
@@ -339,6 +377,9 @@ export function calculateMonthlyData({
     depositAccountSpending,
     depositAccountCashOutflow,
     income,
-    byCategory
+    byCategory,
+    eTransfersIn,
+    eTransfersOut,
+    reimbursementsApplied
   };
 }
