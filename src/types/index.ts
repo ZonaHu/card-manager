@@ -60,6 +60,9 @@ export interface Transaction {
   // ID of the purchase this transaction reimburses (set on positive entries
   // when a friend pays back their share of an outlay).
   reimburses_id?: number | null;
+  // Free-form user note. Persisted in SQLite; survives Plaid resync as long
+  // as the transaction id stays stable.
+  notes?: string | null;
 }
 
 export interface MonthlyData {

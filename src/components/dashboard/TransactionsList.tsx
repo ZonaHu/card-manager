@@ -6,6 +6,7 @@ import { findWashedTransactionIds } from '../../utils/spendCalculation';
 import { findCrossMonthRefunds } from '../../utils/refundCrossMonth';
 import { isETransfer } from '../../utils/eTransfer';
 import { REFUND_KEYWORDS } from '../../utils/transactionPatterns';
+import { StickyNote } from 'lucide-react';
 
 interface TransactionsListProps {
   transactions: Transaction[];
@@ -129,6 +130,12 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
                 {reimbursedTotal > 0 && (
                   <p className="text-[10px] text-emerald-700">
                     Reimbursed: -{formatCurrency(reimbursedTotal, userRegion.currency)}
+                  </p>
+                )}
+                {transaction.notes && transaction.notes.trim() && (
+                  <p className="text-[11px] text-gray-600 italic mt-1 flex items-start gap-1">
+                    <StickyNote size={11} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                    <span className="line-clamp-2">{transaction.notes}</span>
                   </p>
                 )}
               </div>

@@ -129,14 +129,20 @@ module.exports = function makeTransactionRoutes(deps) {
     const transactionId = parseInt(req.params.id, 10);
     if (Number.isNaN(transactionId)) return res.status(400).json({ error: 'Invalid transaction id' });
 
-    const { amount, description, category } = req.body;
+    const { amount, description, category, notes } = req.body;
     if (!amount || !description || !category) {
       return res.status(400).json({ error: 'Amount, description, and category are required' });
     }
 
+    // Cap notes at a sane length — protects DB rows from accidental megabyte
+    // pastes and bounds row size for the dashboard query.
+    const safeNotes =
+      notes === undefined || notes === null ? null :
+      typeof notes === 'string' ? notes.slice(0, 2000) : null;
+
     db.run(
-      'UPDATE transactions SET amount = ?, description = ?, category = ? WHERE id = ? AND user_id = ?',
-      [amount, description, category, transactionId, req.user.userId],
+      'UPDATE transactions SET amount = ?, description = ?, category = ?, notes = ? WHERE id = ? AND user_id = ?',
+      [amount, description, category, safeNotes, transactionId, req.user.userId],
       function (err) {
         if (err) return sendServerError(res, err);
         if (this.changes === 0) return res.status(404).json({ error: 'Transaction not found' });

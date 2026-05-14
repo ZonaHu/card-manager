@@ -13,6 +13,7 @@ interface TransactionEditModalProps {
     amount: number;
     description: string;
     category: string;
+    notes?: string | null;
   }) => void;
   onCancel: () => void;
   // Called after a reimbursement link is changed so the parent can re-fetch
@@ -31,6 +32,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const [amount, setAmount] = useState(Math.abs(transaction.amount).toString());
   const [description, setDescription] = useState(transaction.description);
   const [category, setCategory] = useState(transaction.category);
+  const [notes, setNotes] = useState(transaction.notes ?? '');
   const [isNegative, setIsNegative] = useState(transaction.amount < 0);
   const [rememberMerchant, setRememberMerchant] = useState(false);
   const [savingRule, setSavingRule] = useState(false);
@@ -111,7 +113,8 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
       id: transaction.id,
       amount: isNegative ? -parseFloat(amount) : parseFloat(amount),
       description,
-      category
+      category,
+      notes: notes.trim() || null
     });
   };
 
@@ -176,6 +179,19 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes <span className="text-gray-400 text-xs">(optional · {notes.length}/2000)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 2000))}
+              placeholder="Anything to remember about this charge — context, who you were with, what for…"
+              rows={3}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-y"
+            />
           </div>
 
           <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">

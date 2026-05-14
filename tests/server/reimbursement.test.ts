@@ -58,6 +58,34 @@ describe('POST /api/transactions/:id/reimburses', () => {
     expect(res.status).toBe(400);
   });
 
+  it('PUT /api/transactions/:id round-trips notes (persisted, not wiped on subsequent update)', async () => {
+    const agent = request.agent(app);
+    const { purchaseId } = await seed(agent);
+
+    // First update — set a note.
+    let res = await agent.put(`/api/transactions/${purchaseId}`).send({
+      amount: -100, description: 'DINNER', category: 'Food', notes: 'split with Yutang'
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.notes).toBe('split with Yutang');
+
+    // Second update without notes field — backend should treat undefined as
+    // null (matches the validation rule). Round-trip stays stable.
+    res = await agent.put(`/api/transactions/${purchaseId}`).send({
+      amount: -100, description: 'DINNER', category: 'Food'
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.notes).toBeNull();
+
+    // Set notes again, verify length cap.
+    const huge = 'a'.repeat(3000);
+    res = await agent.put(`/api/transactions/${purchaseId}`).send({
+      amount: -100, description: 'DINNER', category: 'Food', notes: huge
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.notes.length).toBe(2000);
+  });
+
   it('does NOT let user A link across user B transactions', async () => {
     const a = request.agent(app);
     const seedA = await seed(a);

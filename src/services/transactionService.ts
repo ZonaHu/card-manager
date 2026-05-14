@@ -34,13 +34,15 @@ export class TransactionService {
     amount: number;
     description: string;
     category: string;
+    notes?: string | null;
   }): Promise<Transaction> {
     const updatedTransaction = await this.apiCall(`/api/transactions/${transactionData.id}`, {
       method: 'PUT',
       body: JSON.stringify({
         amount: transactionData.amount,
         description: transactionData.description,
-        category: transactionData.category
+        category: transactionData.category,
+        notes: transactionData.notes ?? null
       })
     });
 
