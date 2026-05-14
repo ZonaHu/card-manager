@@ -24,6 +24,23 @@ export interface Card {
   categoryInfo?: CardCategory;
   institution_name?: string;
   account_subtype?: string;
+  item_id?: string;
+  needs_reauth?: boolean;
+  reauth_error_code?: string;
+  last_synced_at?: string;
+  last_sync_attempt_at?: string;
+  last_sync_error?: string;
+}
+
+export type BudgetConfig = Record<string, number>;
+
+export interface RecurringTransaction {
+  description: string;
+  amount: number;
+  category: string;
+  occurrences: number;
+  lastSeen: string;
+  averageIntervalDays: number;
 }
 
 export interface Transaction {
@@ -35,13 +52,20 @@ export interface Transaction {
   category: string;
   date: string;
   source: string;
+  pending?: boolean | number;
+  transaction_currency?: string;
+  original_amount?: number;
 }
 
 export interface MonthlyData {
   transactions: Transaction[];
   spending: number;
+  creditCardSpending?: number;
+  depositAccountSpending?: number;
+  depositAccountCashOutflow?: number; // total cash leaving deposit accounts, including CC payments
   income: number;
   byCategory: Record<string, number>;
+  allTransactions?: Transaction[];
 }
 
 export interface UserRegion {

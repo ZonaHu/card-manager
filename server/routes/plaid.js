@@ -207,7 +207,10 @@ module.exports = function makePlaidRoutes(deps) {
         if (!matchingAccount) return Promise.resolve();
         return new Promise((resolve, reject) => {
           db.run(
-            'INSERT INTO transactions (user_id, card_id, amount, description, category, date, source, plaid_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            `INSERT INTO transactions
+               (user_id, card_id, amount, description, category, date, source,
+                plaid_transaction_id, pending, transaction_currency, original_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               req.user.userId,
               matchingAccount.id,
@@ -216,7 +219,10 @@ module.exports = function makePlaidRoutes(deps) {
               categorizeWithRules(transaction, rules),
               transaction.date,
               'plaid',
-              transaction.transaction_id
+              transaction.transaction_id,
+              transaction.pending ? 1 : 0,
+              transaction.iso_currency_code || transaction.unofficial_currency_code || null,
+              transaction.amount
             ],
             function (err) {
               if (err && !err.message.includes('UNIQUE constraint failed')) reject(err);
@@ -271,7 +277,10 @@ module.exports = function makePlaidRoutes(deps) {
         if (!existing) {
           await new Promise((resolve, reject) => {
             db.run(
-              'INSERT INTO transactions (user_id, card_id, amount, description, category, date, source, plaid_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              `INSERT INTO transactions
+                 (user_id, card_id, amount, description, category, date, source,
+                  plaid_transaction_id, pending, transaction_currency, original_amount)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 userId,
                 matchingCard.id,
@@ -280,7 +289,10 @@ module.exports = function makePlaidRoutes(deps) {
                 categorizeWithRules(transaction, rules),
                 transaction.date,
                 'plaid',
-                transaction.transaction_id
+                transaction.transaction_id,
+                transaction.pending ? 1 : 0,
+                transaction.iso_currency_code || transaction.unofficial_currency_code || null,
+                transaction.amount
               ],
               function (err) { err ? reject(err) : resolve(); }
             );
@@ -378,10 +390,16 @@ module.exports = function makePlaidRoutes(deps) {
         const storedAmount = -t.amount;
         const inserted = await new Promise((resolve, reject) => {
           db.run(
-            'INSERT INTO transactions (user_id, card_id, amount, description, category, date, source, plaid_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            `INSERT INTO transactions
+               (user_id, card_id, amount, description, category, date, source,
+                plaid_transaction_id, pending, transaction_currency, original_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               userId, matchingCard.id, storedAmount, t.name,
-              categorizeWithRules(t, rules), t.date, 'plaid', t.transaction_id
+              categorizeWithRules(t, rules), t.date, 'plaid', t.transaction_id,
+              t.pending ? 1 : 0,
+              t.iso_currency_code || t.unofficial_currency_code || null,
+              t.amount
             ],
             function (err) {
               if (err && err.message.includes('UNIQUE constraint failed')) return resolve({ inserted: false, id: null });
@@ -402,10 +420,14 @@ module.exports = function makePlaidRoutes(deps) {
         if (!matchingCard) continue;
         await new Promise((resolve, reject) => {
           db.run(
-            'UPDATE transactions SET amount = ?, description = ?, category = ?, date = ?, card_id = ? WHERE plaid_transaction_id = ? AND user_id = ?',
+            'UPDATE transactions SET amount = ?, description = ?, category = ?, date = ?, card_id = ?, pending = ?, transaction_currency = ?, original_amount = ? WHERE plaid_transaction_id = ? AND user_id = ?',
             [
               -t.amount, t.name, categorizeWithRules(t, rules), t.date,
-              matchingCard.id, t.transaction_id, userId
+              matchingCard.id,
+              t.pending ? 1 : 0,
+              t.iso_currency_code || t.unofficial_currency_code || null,
+              t.amount,
+              t.transaction_id, userId
             ],
             function (err) { if (err) return reject(err); updated += this.changes; resolve(); }
           );
