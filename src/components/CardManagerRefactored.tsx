@@ -843,6 +843,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                       (t.description ?? '').toLowerCase().includes(searchQuery.toLowerCase().trim()))
                   : monthlyData.transactions
               }
+              allTransactions={transactions}
               cards={cards}
               userRegion={userRegion}
               onTransactionClick={handleTransactionClick}

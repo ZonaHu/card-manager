@@ -3,6 +3,7 @@ import type { Transaction, Card, UserRegion } from '../../types';
 import { getCategoryColor } from '../../constants/categories';
 import { formatCurrency } from '../../utils/currency';
 import { findWashedTransactionIds } from '../../utils/spendCalculation';
+import { findCrossMonthRefunds } from '../../utils/refundCrossMonth';
 
 interface TransactionsListProps {
   transactions: Transaction[];
@@ -10,6 +11,9 @@ interface TransactionsListProps {
   userRegion: UserRegion;
   onTransactionClick: (transaction: Transaction) => void;
   limit?: number;
+  // Full history. Needed so a refund visible in the current month can be paired
+  // to a purchase posted in a prior month (which isn't in `transactions`).
+  allTransactions?: Transaction[];
 }
 
 // Inline visual badges to make the dashboard self-explanatory: any
@@ -34,10 +38,15 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
   cards,
   userRegion,
   onTransactionClick,
-  limit = 10
+  limit = 10,
+  allTransactions
 }) => {
   // Cheap wash lookup over the visible window so we can badge net-zero pairs.
   const washedIds = React.useMemo(() => findWashedTransactionIds(transactions), [transactions]);
+  const crossMonth = React.useMemo(
+    () => new Map(findCrossMonthRefunds(allTransactions ?? transactions).map(x => [x.refundId, x])),
+    [allTransactions, transactions]
+  );
   const displayTransactions = transactions.slice(0, limit);
 
   if (transactions.length === 0) {
@@ -78,6 +87,11 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
                   {isPending && <Badge tone="blue" title="Not yet posted — excluded from totals until it settles">Pending</Badge>}
                 </div>
                 <p className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</p>
+                {crossMonth.has(transaction.id) && (
+                  <p className="text-[10px] text-blue-600">
+                    Refunds a purchase from {crossMonth.get(transaction.id)!.purchaseMonth}
+                  </p>
+                )}
               </div>
             </div>
             <div className="text-right">
