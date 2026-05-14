@@ -73,7 +73,10 @@ function makeApp(db, opts = {}) {
         // Production builds have no inline scripts, so strict same-origin.
         'script-src': IS_PROD ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         'style-src': ["'self'", "'unsafe-inline'"],
-        'connect-src': ["'self'", 'https://*.plaid.com', 'https:'],
+        // Tight list — only what the frontend actually needs to hit: own API
+        // ('self'), Plaid Link's parent-window XHRs. img-src keeps 'https:' so
+        // institution logos served by Plaid's CDN-of-the-day still render.
+        'connect-src': ["'self'", 'https://*.plaid.com'],
         'img-src': ["'self'", 'data:', 'https:'],
         'frame-src': ['https://cdn.plaid.com']
       }

@@ -150,100 +150,114 @@ module.exports = function makePlaidRoutes(deps) {
           (err, user) => err ? reject(err) : resolve((user && user.preferred_currency) || 'USD'));
       });
 
-      // Persist the Plaid item itself before the cards so each card row can FK
-      // to its plaid_items.id. Sync iterates plaid_items, so skipping this would
-      // leave the new connection invisible to incremental sync.
       const encryptedToken = encryptSecret(access_token);
-      const itemPk = await plaidItems.upsertItem(db, req.user.userId, {
-        item_id,
-        institution_name: institution.name,
-        access_token: encryptedToken
-      });
 
-      const insertPromises = accounts.map(account => new Promise((resolve, reject) => {
-        const accountName = `${institution.name} ${account.subtype || account.type}`;
-        const category = smartCategorizeAccount(accountName, institution.name, account.type, account.subtype);
-
-        db.run(
-          'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id, plaid_item_pk, category, institution_name, account_subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [
-            req.user.userId,
-            accountName,
-            account.type === 'credit' ? 'credit' : 'debit',
-            account.mask || '0000',
-            account.balances.current || 0,
-            userCurrency,
-            account.account_id,
-            true,
-            encryptedToken,
-            item_id,
-            itemPk,
-            category,
-            institution.name,
-            account.subtype
-          ],
-          function (err) {
-            if (err) return reject(err);
-            resolve({
-              id: this.lastID,
-              name: accountName,
-              type: account.type === 'credit' ? 'credit' : 'debit',
-              last_four: account.mask || '0000',
-              balance: account.balances.current || 0,
-              currency: userCurrency,
-              plaid_id: account.account_id,
-              connected: true,
-              item_id,
-              category,
-              institution_name: institution.name,
-              account_subtype: account.subtype,
-              categoryInfo: CARD_CATEGORIES[category] || CARD_CATEGORIES.other
-            });
-          }
-        );
-      }));
-
-      const savedAccounts = await Promise.all(insertPromises);
-
+      // Pull initial txn window BEFORE opening the DB transaction. Plaid network
+      // latency is variable and we don't want to hold a write lock across it.
       const transactionsResponse = await plaidClient.transactionsGet({
         access_token,
         start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0]
       });
-
+      const initialTxns = transactionsResponse.data.transactions || [];
       const rules = await loadRules(db, req.user.userId);
 
-      const transactionPromises = transactionsResponse.data.transactions.map(transaction => {
-        const matchingAccount = savedAccounts.find(acc => acc.plaid_id === transaction.account_id);
-        if (!matchingAccount) return Promise.resolve();
-        return new Promise((resolve, reject) => {
+      // All DB writes happen inside one transaction so a partial failure can't
+      // leave an orphan plaid_items row pointing at no cards (or vice-versa).
+      await new Promise((resolve, reject) =>
+        db.run('BEGIN IMMEDIATE', err => err ? reject(err) : resolve()));
+
+      let savedAccounts;
+      try {
+        const itemPk = await plaidItems.upsertItem(db, req.user.userId, {
+          item_id,
+          institution_name: institution.name,
+          access_token: encryptedToken
+        });
+
+        const insertPromises = accounts.map(account => new Promise((resolve, reject) => {
+          const accountName = `${institution.name} ${account.subtype || account.type}`;
+          const category = smartCategorizeAccount(accountName, institution.name, account.type, account.subtype);
+
           db.run(
-            `INSERT INTO transactions
-               (user_id, card_id, amount, description, category, date, source,
-                plaid_transaction_id, pending, transaction_currency, original_amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id, plaid_item_pk, category, institution_name, account_subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
               req.user.userId,
-              matchingAccount.id,
-              -transaction.amount, // Plaid uses positive for outgoing, we use negative
-              transaction.name,
-              categorizeWithRules(transaction, rules),
-              transaction.date,
-              'plaid',
-              transaction.transaction_id,
-              transaction.pending ? 1 : 0,
-              transaction.iso_currency_code || transaction.unofficial_currency_code || null,
-              transaction.amount
+              accountName,
+              account.type === 'credit' ? 'credit' : 'debit',
+              account.mask || '0000',
+              account.balances.current || 0,
+              userCurrency,
+              account.account_id,
+              true,
+              encryptedToken,
+              item_id,
+              itemPk,
+              category,
+              institution.name,
+              account.subtype
             ],
             function (err) {
-              if (err && !err.message.includes('UNIQUE constraint failed')) reject(err);
-              else resolve();
+              if (err) return reject(err);
+              resolve({
+                id: this.lastID,
+                name: accountName,
+                type: account.type === 'credit' ? 'credit' : 'debit',
+                last_four: account.mask || '0000',
+                balance: account.balances.current || 0,
+                currency: userCurrency,
+                plaid_id: account.account_id,
+                connected: true,
+                item_id,
+                category,
+                institution_name: institution.name,
+                account_subtype: account.subtype,
+                categoryInfo: CARD_CATEGORIES[category] || CARD_CATEGORIES.other
+              });
             }
           );
-        });
-      });
+        }));
 
-      await Promise.all(transactionPromises);
+        savedAccounts = await Promise.all(insertPromises);
+
+        const transactionPromises = initialTxns.map(transaction => {
+          const matchingAccount = savedAccounts.find(acc => acc.plaid_id === transaction.account_id);
+          if (!matchingAccount) return Promise.resolve();
+          return new Promise((resolve, reject) => {
+            db.run(
+              `INSERT INTO transactions
+                 (user_id, card_id, amount, description, category, date, source,
+                  plaid_transaction_id, pending, transaction_currency, original_amount)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                req.user.userId,
+                matchingAccount.id,
+                -transaction.amount,
+                transaction.name,
+                categorizeWithRules(transaction, rules),
+                transaction.date,
+                'plaid',
+                transaction.transaction_id,
+                transaction.pending ? 1 : 0,
+                transaction.iso_currency_code || transaction.unofficial_currency_code || null,
+                transaction.amount
+              ],
+              function (err) {
+                if (err && !err.message.includes('UNIQUE constraint failed')) reject(err);
+                else resolve();
+              }
+            );
+          });
+        });
+
+        await Promise.all(transactionPromises);
+
+        await new Promise((resolve, reject) =>
+          db.run('COMMIT', err => err ? reject(err) : resolve()));
+      } catch (txErr) {
+        await new Promise(resolve => db.run('ROLLBACK', () => resolve()));
+        throw txErr;
+      }
 
       res.json({
         accounts: savedAccounts,
