@@ -150,12 +150,22 @@ module.exports = function makePlaidRoutes(deps) {
           (err, user) => err ? reject(err) : resolve((user && user.preferred_currency) || 'USD'));
       });
 
+      // Persist the Plaid item itself before the cards so each card row can FK
+      // to its plaid_items.id. Sync iterates plaid_items, so skipping this would
+      // leave the new connection invisible to incremental sync.
+      const encryptedToken = encryptSecret(access_token);
+      const itemPk = await plaidItems.upsertItem(db, req.user.userId, {
+        item_id,
+        institution_name: institution.name,
+        access_token: encryptedToken
+      });
+
       const insertPromises = accounts.map(account => new Promise((resolve, reject) => {
         const accountName = `${institution.name} ${account.subtype || account.type}`;
         const category = smartCategorizeAccount(accountName, institution.name, account.type, account.subtype);
 
         db.run(
-          'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id, category, institution_name, account_subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO cards (user_id, name, type, last_four, balance, currency, plaid_id, connected, access_token, item_id, plaid_item_pk, category, institution_name, account_subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             req.user.userId,
             accountName,
@@ -165,8 +175,9 @@ module.exports = function makePlaidRoutes(deps) {
             userCurrency,
             account.account_id,
             true,
-            encryptSecret(access_token),
+            encryptedToken,
             item_id,
+            itemPk,
             category,
             institution.name,
             account.subtype

@@ -33,19 +33,12 @@ describe('E2E: register → exchange → sync → aggregate', () => {
     });
     expect(ex.status).toBe(200);
 
-    // exchange-public-token populates `cards` but not `plaid_items`.
-    // sync-transactions reads from plaid_items, so we backfill it here using
-    // the encrypted access_token that was stored on the card during exchange.
-    const { upsertItem } = require_('../../server/lib/plaidItems');
-    const card = await new Promise<any>((resolve, reject) =>
-      db.get('SELECT * FROM cards WHERE item_id = ?', ['IT_STUB'], (err: any, row: any) =>
+    // Exchange must have populated plaid_items so sync can find this connection.
+    const item = await new Promise<any>((resolve, reject) =>
+      db.get('SELECT * FROM plaid_items WHERE item_id = ?', ['IT_STUB'], (err: any, row: any) =>
         err ? reject(err) : resolve(row)));
-    expect(card).toBeTruthy();
-    await upsertItem(db, card.user_id, {
-      item_id: 'IT_STUB',
-      institution_name: 'Test Bank',
-      access_token: card.access_token   // already encrypted
-    });
+    expect(item).toBeTruthy();
+    expect(item.institution_name).toBe('Test Bank');
 
     const sync = await agent.post('/api/plaid/sync-transactions');
     expect(sync.status).toBe(200);
