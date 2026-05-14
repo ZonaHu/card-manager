@@ -235,7 +235,7 @@ export const RulesPanel: React.FC<RulesPanelProps> = ({ cards, allTransactions }
             )}
 
             <div>
-              <form onSubmit={addSplitRule} className="grid grid-cols-1 sm:grid-cols-6 gap-2">
+              <form onSubmit={addSplitRule} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
                 <input
                   type="text"
                   value={splitDraft.pattern}
