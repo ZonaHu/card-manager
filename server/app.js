@@ -37,7 +37,11 @@ const {
   authLimiter,
   apiLimiter,
   registerSchema,
-  loginSchema
+  loginSchema,
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_OPTS,
+  generateRefreshToken,
+  issueRefreshCookie
 } = require('./lib/auth');
 
 const authRoutes = require('./routes/auth');
@@ -177,7 +181,11 @@ function makeApp(db, opts = {}) {
     registerSchema,
     loginSchema,
     AUTH_COOKIE_NAME,
-    AUTH_COOKIE_OPTS
+    AUTH_COOKIE_OPTS,
+    REFRESH_COOKIE_NAME,
+    REFRESH_COOKIE_OPTS,
+    generateRefreshToken,
+    issueRefreshCookie
   }));
 
   app.use('/api/user', preferenceRoutes(sharedDeps));
