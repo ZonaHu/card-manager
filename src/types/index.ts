@@ -36,7 +36,9 @@ export type BudgetConfig = Record<string, number>;
 
 export interface RecurringTransaction {
   description: string;
-  amount: number;
+  amount: number;     // latest seen amount (rounded display)
+  minAmount: number;
+  maxAmount: number;
   category: string;
   occurrences: number;
   lastSeen: string;
