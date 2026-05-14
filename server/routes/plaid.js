@@ -338,8 +338,9 @@ module.exports = function makePlaidRoutes(deps) {
   // Cursor-based sync via Plaid's transactionsSync API. Replaces the
   // window-based syncWindow for incremental refreshes: Plaid returns added,
   // modified, and removed deltas natively so we don't need to reconcile a
-  // window ourselves. Cursor lives on the cards row (one per item; all cards
-  // sharing an item share a cursor — we keep them in sync).
+  // window ourselves. Cursor + reauth state live on the plaid_items table
+  // (one row per Plaid item); cards mirror those fields only for legacy
+  // compatibility — sync reads and writes through `plaidItems.*` helpers.
   async function syncIncremental({ userId, cards, accessToken, itemPk, cursor, rules = [], splitRules = [] }) {
     const added = [];
     const modified = [];
