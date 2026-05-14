@@ -22,6 +22,7 @@ import { TransactionsList } from './dashboard/TransactionsList';
 import { BudgetPanel } from './dashboard/BudgetPanel';
 import { RecurringList } from './dashboard/RecurringList';
 import { ETransferPanel } from './dashboard/ETransferPanel';
+import { FixedCostsPanel } from './dashboard/FixedCostsPanel';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
@@ -779,8 +780,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           <RecurringList transactions={transactions} userRegion={userRegion} />
         </div>
 
-        {/* E-Transfer activity — separate from spend/income totals */}
-        <div className="mb-8">
+        {/* Fixed monthly obligations + e-Transfer activity, side-by-side on
+            wide screens. Both panels self-hide when there's nothing to show. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <FixedCostsPanel
+            transactions={transactions}
+            currentMonth={currentMonth}
+            userRegion={userRegion}
+          />
           <ETransferPanel transactions={monthlyData.transactions} userRegion={userRegion} />
         </div>
 

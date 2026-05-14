@@ -24,13 +24,18 @@ const REAUTH_ERROR_CODES = new Set([
 
 // Description-based detectors that take precedence over Plaid's category
 // signal, since Plaid often returns "Other" / TRANSFER_IN for things the user
-// thinks of as ATM withdrawals or bank deposits.
+// thinks of as ATM withdrawals, bank deposits, or rent.
 const CASH_OUT_RE = /\b(atm withdrawal|atm wd|cash advance|bank draft|\[dm\] *\d+ *draft|^draft\b)/i;
 const DEPOSIT_RE = /\b(deposit paypal|internet deposit|^deposit\b|electronic funds transfer|direct deposit)\b/i;
+// Rent + utility/telecom vendors Plaid often miscategorizes. Bills bucket so
+// the existing budget/category breakdown handles them correctly; the
+// front-end FixedCostsPanel does the per-vendor grouping on top.
+const BILLS_RE = /\bchexy\b|\bmetergy\b|\benbridge\b|\btoronto hydro\b|\bhydro one\b|\bbell canada\b|\brogers bk\b|\bfido\b|\bkoodo\b|\btelus mobility\b|\brogers wireless\b/i;
 
 function detectByDescription(desc) {
   if (!desc) return null;
   if (CASH_OUT_RE.test(desc)) return 'Cash';
+  if (BILLS_RE.test(desc)) return 'Bills';
   // Direct deposit + payroll usually mean income — let the existing rule
   // handle "Direct deposit" suffix below; only treat plain "DEPOSIT *" as a
   // generic Deposit.
