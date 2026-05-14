@@ -6,9 +6,13 @@
 
 const crypto = require('crypto');
 
+// Restrict to a safe ASCII subset so an attacker can't smuggle CRLF, control
+// chars, or quotes into log lines or response headers via the inbound header.
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
+
 function requestId(req, res, next) {
   const incoming = req.headers['x-request-id'];
-  const id = (typeof incoming === 'string' && incoming.length <= 64)
+  const id = (typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming))
     ? incoming
     : crypto.randomBytes(8).toString('hex');
   res.locals.requestId = id;

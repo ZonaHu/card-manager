@@ -121,17 +121,33 @@ module.exports = function makeAuthRoutes(deps) {
         if (!row || row.revoked_at || new Date(row.expires_at) <= new Date()) {
           return res.status(401).json({ error: 'Invalid refresh token' });
         }
-        // Rotate: revoke old, issue new.
-        db.run('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = ?', [row.rt_id]);
-        const newRefresh = generateRefreshToken();
-        const exp = new Date(Date.now() + REFRESH_COOKIE_OPTS.maxAge).toISOString();
-        db.run('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-          [row.user_id, newRefresh, exp]);
-        issueRefreshCookie(res, newRefresh);
-        const token = issueAuthCookie(res, {
-          userId: row.user_id, email: row.email, name: row.name, tv: row.token_version
-        });
-        res.json({ token, user: { id: row.user_id, email: row.email, name: row.name } });
+        // Atomic revoke: only this caller wins because the WHERE clause requires
+        // the row still be live. Two concurrent /refresh calls with the same
+        // cookie now produce exactly one new token instead of racing to two.
+        db.run(
+          'UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND revoked_at IS NULL',
+          [row.rt_id],
+          function (revokeErr) {
+            if (revokeErr) return sendServerError(res, revokeErr);
+            if (this.changes !== 1) {
+              return res.status(401).json({ error: 'Invalid refresh token' });
+            }
+            const newRefresh = generateRefreshToken();
+            const exp = new Date(Date.now() + REFRESH_COOKIE_OPTS.maxAge).toISOString();
+            db.run(
+              'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+              [row.user_id, newRefresh, exp],
+              (insertErr) => {
+                if (insertErr) return sendServerError(res, insertErr);
+                issueRefreshCookie(res, newRefresh);
+                const token = issueAuthCookie(res, {
+                  userId: row.user_id, email: row.email, name: row.name, tv: row.token_version
+                });
+                res.json({ token, user: { id: row.user_id, email: row.email, name: row.name } });
+              }
+            );
+          }
+        );
       }
     );
   });
