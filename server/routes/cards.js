@@ -21,9 +21,17 @@ async function runRecategorize({ db, plaidClient, decryptSecret, mapPlaidCategor
   let updatedCount = 0;
   for (const [accessToken, txnGroup] of Object.entries(transactionsByToken)) {
     try {
+      // Bound the window to what's actually in our DB for this token's cards
+      // rather than always sweeping back to 2023-01-01. Saves a large Plaid
+      // response on every recategorize for power users.
+      let earliest = null;
+      for (const t of txnGroup) {
+        if (!earliest || t.date < earliest) earliest = t.date;
+      }
+      const startDate = earliest || '2023-01-01';
       const r = await plaidClient.transactionsGet({
         access_token: accessToken,
-        start_date: '2023-01-01',
+        start_date: startDate,
         end_date: new Date().toISOString().split('T')[0]
       });
       const plaidTxns = r.data.transactions;

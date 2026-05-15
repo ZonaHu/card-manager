@@ -401,7 +401,13 @@ module.exports = function makePlaidRoutes(deps) {
       modified.push(...d.modified);
       removed.push(...d.removed);
       hasMore = !!d.has_more;
-      nextCursor = d.next_cursor || nextCursor;
+      // Plaid uses "" (empty string) as the valid initial cursor for a fresh
+      // item; only undefined/null mean "no update." `||` would discard "" and
+      // keep replaying the previous-page cursor, treating the same window as
+      // new every sync.
+      if (d.next_cursor !== undefined && d.next_cursor !== null) {
+        nextCursor = d.next_cursor;
+      }
     }
 
     if (added.length > 10000) {
@@ -475,9 +481,10 @@ module.exports = function makePlaidRoutes(deps) {
         });
       }
 
-      // Persist the new cursor on plaid_items. Skip if we never got a cursor
-      // (initial empty response with !has_more on a brand-new item).
-      if (nextCursor && itemPk) {
+      // Persist the new cursor on plaid_items. nextCursor === '' is a valid
+      // first-page cursor for a brand-new item — store it. Only skip when
+      // we genuinely never received a cursor from Plaid.
+      if (nextCursor !== null && nextCursor !== undefined && itemPk) {
         await plaidItems.updateCursor(db, itemPk, nextCursor);
       }
 
@@ -488,27 +495,38 @@ module.exports = function makePlaidRoutes(deps) {
       throw txErr;
     }
 
-    // Balances + reauth-clear + last-synced timestamp — unchanged from window sync.
-    const accountsResponse = await plaidClient.accountsGet({ access_token: accessToken });
-    for (const account of accountsResponse.data.accounts) {
-      const matchingCard = cards.find(c => c.plaid_id === account.account_id);
-      if (matchingCard) {
-        await new Promise((resolve, reject) => {
-          db.run('UPDATE cards SET balance = ? WHERE id = ?',
-            [account.balances.current || 0, matchingCard.id],
-            err => err ? reject(err) : resolve());
-        });
+    // Balances + reauth-clear + last-synced timestamp. The COMMIT above already
+    // landed the new transactions; treat any failure here as soft so a brief
+    // Plaid hiccup on accountsGet doesn't surface as "sync failed" to the
+    // user even though their txns are already saved.
+    try {
+      const accountsResponse = await plaidClient.accountsGet({ access_token: accessToken });
+      for (const account of accountsResponse.data.accounts) {
+        const matchingCard = cards.find(c => c.plaid_id === account.account_id);
+        if (matchingCard) {
+          await new Promise((resolve, reject) => {
+            db.run('UPDATE cards SET balance = ? WHERE id = ?',
+              [account.balances.current || 0, matchingCard.id],
+              err => err ? reject(err) : resolve());
+          });
+        }
       }
+      await clearCardsReauth(cards.map(c => c.id));
+      const placeholders = cards.map(() => '?').join(',');
+      await new Promise((resolve, reject) => {
+        db.run(
+          `UPDATE cards SET last_synced_at = CURRENT_TIMESTAMP, last_sync_attempt_at = CURRENT_TIMESTAMP, last_sync_error = NULL WHERE id IN (${placeholders})`,
+          cards.map(c => c.id),
+          err => err ? reject(err) : resolve()
+        );
+      });
+    } catch (postSyncErr) {
+      logger.warn('post-sync balance/timestamp update failed (transactions already saved)', {
+        err: postSyncErr && postSyncErr.message,
+        userId,
+        itemPk
+      });
     }
-    await clearCardsReauth(cards.map(c => c.id));
-    const placeholders = cards.map(() => '?').join(',');
-    await new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE cards SET last_synced_at = CURRENT_TIMESTAMP, last_sync_attempt_at = CURRENT_TIMESTAMP, last_sync_error = NULL WHERE id IN (${placeholders})`,
-        cards.map(c => c.id),
-        err => err ? reject(err) : resolve()
-      );
-    });
 
     return { added: newTransactions, modified: updated, removed: removedCount };
   }

@@ -7,6 +7,15 @@ export interface PlaidItemSummary {
   needs_reauth?: number | boolean;
 }
 
+// SQLite's CURRENT_TIMESTAMP returns "YYYY-MM-DD HH:MM:SS" with NO timezone
+// suffix; JS `new Date(...)` parses that as local time. Treat naive strings
+// as UTC by appending 'Z' before parsing so the staleness math doesn't drift
+// by the viewer's offset.
+function parseUtcIsoish(s: string): number {
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s).getTime();
+  return new Date(s.replace(' ', 'T') + 'Z').getTime();
+}
+
 /**
  * Filters the user's plaid_items rows down to the ones whose data is older
  * than `thresholdHours`. Items currently flagged for reauth are excluded —
@@ -22,6 +31,6 @@ export function findStaleItems(
   return items.filter(i => {
     if (i.needs_reauth) return false;
     if (!i.last_synced_at) return true;
-    return nowMs - new Date(i.last_synced_at).getTime() > thresholdMs;
+    return nowMs - parseUtcIsoish(i.last_synced_at) > thresholdMs;
   });
 }
