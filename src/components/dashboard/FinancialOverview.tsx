@@ -18,11 +18,13 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   onMonthChange,
   onScrollToTransactions
 }) => {
-  // Net cash flow = income - total cash out of deposit accounts (includes CC payments,
-  // excludes credit card spending since that's debt, not cash).
-  // Falls back to (spending - income) if the calculation wasn't split by account type.
-  const cashOutflow = monthlyData.depositAccountCashOutflow ?? monthlyData.spending;
-  const netSpending = cashOutflow - monthlyData.income;
+  // Net cash flow = income - total cash out of deposit accounts (includes CC
+  // payments, excludes credit card spending since that's debt, not cash).
+  // When the spend calc didn't expose the depository split (older callers),
+  // show "—" rather than falling back to total spending — that fallback
+  // double-counted credit-card purchases that haven't been paid yet.
+  const cashOutflow = monthlyData.depositAccountCashOutflow;
+  const netSpending = cashOutflow !== undefined ? cashOutflow - monthlyData.income : null;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
@@ -81,20 +83,29 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       </button>
 
       {/* Net Change */}
-      <button 
+      <button
         onClick={onScrollToTransactions}
         className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
       >
         <div className="flex items-center gap-3 mb-2">
-          <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 ${netSpending <= 0 ? "text-green-600" : "text-red-600"}`} />
+          <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 ${netSpending !== null && netSpending <= 0 ? "text-green-600" : "text-red-600"}`} />
           <h3 className="text-lg font-semibold text-gray-900">Net</h3>
         </div>
-        <p className={`text-xl sm:text-2xl font-bold ${netSpending <= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {netSpending > 0 ? '-' : '+'}{formatCurrency(Math.abs(netSpending), userRegion.currency)}
-        </p>
-        <p className="text-sm text-gray-500">
-          {netSpending <= 0 ? 'Positive cash flow' : 'Net spending'}
-        </p>
+        {netSpending === null ? (
+          <>
+            <p className="text-xl sm:text-2xl font-bold text-gray-400">—</p>
+            <p className="text-sm text-gray-500">No depository data</p>
+          </>
+        ) : (
+          <>
+            <p className={`text-xl sm:text-2xl font-bold ${netSpending <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {netSpending > 0 ? '-' : '+'}{formatCurrency(Math.abs(netSpending), userRegion.currency)}
+            </p>
+            <p className="text-sm text-gray-500">
+              {netSpending <= 0 ? 'Positive cash flow' : 'Net spending'}
+            </p>
+          </>
+        )}
       </button>
     </div>
   );

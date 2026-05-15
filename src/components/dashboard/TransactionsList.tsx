@@ -129,13 +129,15 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
           <button
             key={transaction.id}
             onClick={() => onTransactionClick(transaction)}
-            className="w-full flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 hover:border-gray-200 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 hover:border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-200 transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full ${getCategoryColor(transaction.category)}`} />
               <div className="text-left">
+                {/* All children below are <span> / <div> — <p> inside a <button>
+                    is invalid HTML and triggers a hydration warning. */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-medium text-gray-900">{transaction.description}</p>
+                  <span className="font-medium text-gray-900">{transaction.description}</span>
                   {isTransfer && <Badge tone="slate" title="Not counted in spending or income">Transfer</Badge>}
                   {isWashed && <Badge tone="amber" title="Paired with an opposite-sign entry (e.g. fee + rebate) — net zero">Wash</Badge>}
                   {isSplit && <Badge tone="purple" title="Auto-split off a larger charge by a split rule">Split</Badge>}
@@ -144,38 +146,38 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
                   {isETx && <Badge tone="emerald" title="Interac e-Transfer — not counted in spending or income">E-Transfer</Badge>}
                   {isReimbursement && <Badge tone="emerald" title="Linked to a purchase — offsets that spend instead of counting as income">Reimburse</Badge>}
                 </div>
-                <p className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</p>
+                <div className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</div>
                 {crossMonth.has(transaction.id) && (
-                  <p className="text-[10px] text-blue-600">
+                  <div className="text-[10px] text-blue-600">
                     Refunds a purchase from {crossMonth.get(transaction.id)!.purchaseMonth}
-                  </p>
+                  </div>
                 )}
                 {isReimbursement && linkedPurchase && (
-                  <p className="text-[10px] text-emerald-700">
+                  <div className="text-[10px] text-emerald-700">
                     Reimburses: {linkedPurchase.description}
-                  </p>
+                  </div>
                 )}
                 {reimbursedTotal > 0 && (
-                  <p className="text-[10px] text-emerald-700">
+                  <div className="text-[10px] text-emerald-700">
                     Reimbursed: -{formatCurrency(reimbursedTotal, userRegion.currency)}
-                  </p>
+                  </div>
                 )}
                 {transaction.notes && transaction.notes.trim() && (
-                  <p className="text-[11px] text-gray-600 italic mt-1 flex items-start gap-1">
+                  <div className="text-[11px] text-gray-600 italic mt-1 flex items-start gap-1">
                     <StickyNote size={11} className="text-amber-500 mt-0.5 flex-shrink-0" />
                     <span className="line-clamp-2">{transaction.notes}</span>
-                  </p>
+                  </div>
                 )}
               </div>
             </div>
             <div className="text-right">
-              <p className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {transaction.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(transaction.amount), userRegion.currency)}
-              </p>
+              </div>
               {transaction.transaction_currency && card?.currency && transaction.transaction_currency !== card.currency && (
-                <p className="text-[10px] text-gray-400">in {transaction.transaction_currency}</p>
+                <div className="text-[10px] text-gray-400">in {transaction.transaction_currency}</div>
               )}
-              <p className="text-sm text-gray-500">{transaction.date}</p>
+              <div className="text-sm text-gray-500">{transaction.date}</div>
             </div>
           </button>
         );

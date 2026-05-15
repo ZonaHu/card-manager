@@ -48,9 +48,29 @@ import RegionSelector from './RegionSelector';
 // Utilities
 import { formatCurrency } from '../utils/currency';
 import { readPersisted, writePersisted } from '../utils/persistedState';
+import type { PlaidItemSummary } from '../utils/syncStaleness';
 
 const SEARCH_KEY = 'card-manager:search';
 const CHIPS_KEY = 'card-manager:chip-filters';
+
+// Tailwind's JIT can't see classes built from template literals, so a
+// `border-${color}-500` expression silently gets purged from the production
+// CSS. Static map lets the compiler keep each border class on the
+// safelist while still varying it by category.
+const CARD_BORDER_BY_COLOR: Record<string, string> = {
+  blue: 'border-blue-500',
+  green: 'border-green-500',
+  emerald: 'border-emerald-500',
+  purple: 'border-purple-500',
+  indigo: 'border-indigo-500',
+  violet: 'border-violet-500',
+  orange: 'border-orange-500',
+  red: 'border-red-500',
+  gray: 'border-gray-500'
+};
+function cardBorderClass(color: string | undefined): string {
+  return (color && CARD_BORDER_BY_COLOR[color]) || 'border-gray-500';
+}
 
 interface CardManagerProps {
   user: User;
@@ -94,7 +114,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
     minAmount?: number; maxAmount?: number;
   }>(() => readPersisted(CHIPS_KEY, {}));
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
-  const [plaidItems, setPlaidItems] = useState<any[]>([]);
+  const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -253,14 +273,12 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
   const syncTransactions = async (type: 'recent' | 'all' = 'recent', months?: number) => {
     try {
-      console.log('Starting sync transactions:', { type, months });
       setLoading(true);
       setError('');
       setSyncBanner({ show: true, message: 'Syncing transactions...', type: 'info' });
-      
       const result = await transactionService.syncTransactions(type, months);
-      console.log('Sync result:', result);
-      
+
+
       // Reload data to show new transactions
       await loadData();
       
@@ -276,7 +294,6 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       // Auto-hide banner after 5 seconds
       setTimeout(() => setSyncBanner(null), 5000);
     } catch (err: any) {
-      console.error('Sync error:', err);
       setSyncBanner({ show: true, message: `Sync failed: ${err.message}`, type: 'error' });
       setError(err.message);
     } finally {
@@ -294,9 +311,8 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       
       // Reload data to show updated categories
       await loadData();
-      
-      console.log('Recategorization result:', result);
-      
+
+
       // Show success message
       const updatedCount = result.updatedTransactions || 0;
       setSyncBanner({ 
@@ -748,7 +764,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 <button
                   key={card.id}
                   onClick={() => handleCardClick(card)}
-                  className={`bg-white rounded-xl p-6 shadow-lg border-l-4 hover:shadow-xl transition-all cursor-pointer text-left ${card.categoryInfo?.color ? `border-${card.categoryInfo.color}-500` : 'border-gray-500'}`}
+                  className={`bg-white rounded-xl p-6 shadow-lg border-l-4 hover:shadow-xl transition-all cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-indigo-300 ${cardBorderClass(card.categoryInfo?.color)}`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
