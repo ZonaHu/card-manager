@@ -76,4 +76,26 @@ describe('computeNetWorthHistory', () => {
     const eom = lastMonthEom();
     expect(eom.length).toBe(10); // YYYY-MM-DD
   });
+
+  it('uses balance snapshots for investment-category cards when available', () => {
+    const cards: Card[] = [
+      { id: 1, name: 'TFSA', type: 'debit', last_four: '7777', balance: 50000, currency: 'CAD', connected: true, category: 'tfsa' }
+    ];
+    // No transactions on the TFSA card (Plaid doesn't return investment txns).
+    const transactions: Transaction[] = [
+      { id: 99, card_id: 2, cardId: 2, amount: -10, description: 'ANCHOR', category: 'Food', date: '2026-02-01', source: 'plaid' }
+    ];
+    const snapshots = [
+      { card_id: 1, date: '2026-02-28', balance: 40000 },
+      { card_id: 1, date: '2026-03-31', balance: 45000 },
+      { card_id: 1, date: '2026-04-30', balance: 48000 }
+    ];
+    const history = computeNetWorthHistory(cards, transactions, snapshots);
+    // Find the March point — should use the 2026-03-31 snapshot, not the
+    // 50000 current balance.
+    const marchPoint = history.find(p => p.month === '2026-03')!;
+    expect(marchPoint).toBeDefined();
+    expect(marchPoint.byCard[1]).toBe(45000);
+    expect(marchPoint.total).toBe(45000);
+  });
 });

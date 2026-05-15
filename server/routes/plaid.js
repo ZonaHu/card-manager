@@ -1,5 +1,6 @@
 const express = require('express');
 const logger = require('../utils/logger');
+const balanceSnapshots = require('../lib/balanceSnapshots');
 
 // Mounted at /api/plaid. Owns the Plaid Link lifecycle (create, exchange,
 // update-mode reauth, sync) plus the recategorize endpoint that re-pulls
@@ -599,6 +600,21 @@ module.exports = function makePlaidRoutes(deps) {
         }
       }
 
+      // Persist a daily balance snapshot per card so the NetWorthChart has real
+      // historical values for investment accounts (no transactions => previously
+      // rendered as a flat line at today's balance).
+      await new Promise((resolve, reject) => {
+        db.all('SELECT id, balance FROM cards WHERE user_id = ? AND connected = 1',
+          [req.user.userId],
+          async (err, rows) => {
+            if (err) return reject(err);
+            try {
+              await balanceSnapshots.recordSnapshots(db, req.user.userId, rows);
+              resolve();
+            } catch (e) { reject(e); }
+          });
+      }).catch(() => { /* snapshot failure must not break the sync response */ });
+
       res.json({
         message: 'Transaction sync completed successfully',
         newTransactions: totalAdded,
@@ -648,6 +664,21 @@ module.exports = function makePlaidRoutes(deps) {
           await handleSyncTokenError(tokenError, cards);
         }
       }
+
+      // Persist a daily balance snapshot per card so the NetWorthChart has real
+      // historical values for investment accounts (no transactions => previously
+      // rendered as a flat line at today's balance).
+      await new Promise((resolve, reject) => {
+        db.all('SELECT id, balance FROM cards WHERE user_id = ? AND connected = 1',
+          [req.user.userId],
+          async (err, rows) => {
+            if (err) return reject(err);
+            try {
+              await balanceSnapshots.recordSnapshots(db, req.user.userId, rows);
+              resolve();
+            } catch (e) { reject(e); }
+          });
+      }).catch(() => { /* snapshot failure must not break the sync response */ });
 
       res.json({
         message: 'Complete transaction history sync completed successfully',

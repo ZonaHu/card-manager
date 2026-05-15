@@ -73,4 +73,9 @@ export class TransactionService {
     });
     return { ...updated, cardId: updated.card_id };
   }
+
+  async getBalanceSnapshots(sinceDate?: string): Promise<Array<{ card_id: number; date: string; balance: number }>> {
+    const q = sinceDate ? `?since=${encodeURIComponent(sinceDate)}` : '';
+    return this.apiCall(`/api/transactions/balance-snapshots${q}`);
+  }
 }

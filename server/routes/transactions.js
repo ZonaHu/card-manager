@@ -155,5 +155,16 @@ module.exports = function makeTransactionRoutes(deps) {
     );
   });
 
+  router.get('/balance-snapshots', authenticateToken, (req, res) => {
+    const sinceRaw = typeof req.query.since === 'string' ? req.query.since : '';
+    const since = /^\d{4}-\d{2}-\d{2}$/.test(sinceRaw)
+      ? sinceRaw
+      : new Date(Date.now() - 365 * 86_400_000).toISOString().split('T')[0];
+    const balanceSnapshots = require('../lib/balanceSnapshots');
+    balanceSnapshots.loadSnapshots(db, req.user.userId, since)
+      .then(rows => res.json(rows))
+      .catch(err => sendServerError(res, err));
+  });
+
   return router;
 };

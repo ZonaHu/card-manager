@@ -7,7 +7,8 @@ import { formatCurrency } from '../../utils/currency';
 
 interface NetWorthChartProps {
   cards: Card[];
-  transactions: Transaction[]; // full history, not month-filtered
+  transactions: Transaction[];
+  snapshots?: Array<{ card_id: number; date: string; balance: number }>;
   userRegion: UserRegion;
 }
 
@@ -16,10 +17,10 @@ interface NetWorthChartProps {
  * through historical transactions. See utils/netWorthHistory for details on
  * limitations.
  */
-export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transactions, userRegion }) => {
+export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transactions, snapshots, userRegion }) => {
   const data = React.useMemo(
-    () => computeNetWorthHistory(cards, transactions),
-    [cards, transactions]
+    () => computeNetWorthHistory(cards, transactions, snapshots),
+    [cards, transactions, snapshots]
   );
 
   if (data.length < 2) {
@@ -61,11 +62,9 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
         </LineChart>
       </ResponsiveContainer>
       <p className="text-xs text-gray-400 mt-2 leading-snug">
-        Approximate. Cash + credit lines are reasonably accurate (current
-        balance rolled backward through transactions). Investment / TFSA /
-        RRSP accounts show today's balance as a flat line — Plaid's
-        <code className="px-1">/investments/transactions</code> API isn't called
-        yet, so market-driven changes don't appear in the history.
+        Approximate. Cash + credit lines roll backward through transactions.
+        Investment / TFSA / RRSP accounts use end-of-day balance snapshots from
+        each sync — so backfill grows with the number of syncs you've done.
       </p>
     </div>
   );

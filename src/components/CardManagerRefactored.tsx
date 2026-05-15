@@ -76,6 +76,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [syncBanner, setSyncBanner] = useState<{show: boolean, message: string, type: 'success' | 'error' | 'info'} | null>(null);
   const [reauthTarget, setReauthTarget] = useState<{ itemId: string; institutionName: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
 
@@ -136,6 +137,13 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       
       setTransactions(transactionsData);
       setCardCategories(categoriesData);
+
+      try {
+        const snaps = await transactionService.getBalanceSnapshots();
+        setSnapshots(snaps);
+      } catch {
+        /* non-fatal — chart falls back to rollback */
+      }
 
       setUserRegion({
         country: preferencesData.country || 'US',
@@ -775,7 +783,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           <React.Suspense fallback={
             <div className="bg-white rounded-xl p-6 shadow-lg text-sm text-gray-400">Loading chart…</div>
           }>
-            <NetWorthChart cards={cards} transactions={transactions} userRegion={userRegion} />
+            <NetWorthChart cards={cards} transactions={transactions} snapshots={snapshots} userRegion={userRegion} />
           </React.Suspense>
           <BudgetPanel byCategory={monthlyData.byCategory} userRegion={userRegion} />
           <RecurringList transactions={transactions} userRegion={userRegion} />
