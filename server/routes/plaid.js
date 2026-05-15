@@ -1,6 +1,7 @@
 const express = require('express');
 const logger = require('../utils/logger');
 const balanceSnapshots = require('../lib/balanceSnapshots');
+const { runRecategorize } = require('./cards');
 
 // Mounted at /api/plaid. Owns the Plaid Link lifecycle (create, exchange,
 // update-mode reauth, sync) plus the recategorize endpoint that re-pulls
@@ -615,6 +616,18 @@ module.exports = function makePlaidRoutes(deps) {
           });
       }).catch(() => { /* snapshot failure must not break the sync response */ });
 
+      // Auto-recategorize: applies the latest Plaid categories + user rules to
+      // the freshly-synced rows. Failures are non-fatal — the user can hit the
+      // menu's "Fix Categorization" button as a manual fallback.
+      try {
+        await runRecategorize({
+          db,
+          plaidClient,
+          decryptSecret: deps.decryptSecret,
+          mapPlaidCategoryToUserFriendly: deps.mapPlaidCategoryToUserFriendly
+        }, req.user.userId);
+      } catch { /* swallowed by design */ }
+
       res.json({
         message: 'Transaction sync completed successfully',
         newTransactions: totalAdded,
@@ -679,6 +692,18 @@ module.exports = function makePlaidRoutes(deps) {
             } catch (e) { reject(e); }
           });
       }).catch(() => { /* snapshot failure must not break the sync response */ });
+
+      // Auto-recategorize: applies the latest Plaid categories + user rules to
+      // the freshly-synced rows. Failures are non-fatal — the user can hit the
+      // menu's "Fix Categorization" button as a manual fallback.
+      try {
+        await runRecategorize({
+          db,
+          plaidClient,
+          decryptSecret: deps.decryptSecret,
+          mapPlaidCategoryToUserFriendly: deps.mapPlaidCategoryToUserFriendly
+        }, req.user.userId);
+      } catch { /* swallowed by design */ }
 
       res.json({
         message: 'Complete transaction history sync completed successfully',

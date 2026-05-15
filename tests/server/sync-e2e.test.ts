@@ -49,5 +49,6 @@ describe('E2E: register → exchange → sync → aggregate', () => {
     expect(txs.body.length).toBe(2);
     const total = txs.body.reduce((s: number, t: any) => s + Math.abs(t.amount), 0);
     expect(total).toBe(150);
+    expect(txs.body.every((t: any) => typeof t.category === 'string' && t.category.length > 0)).toBe(true);
   });
 });
