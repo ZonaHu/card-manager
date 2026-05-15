@@ -17,6 +17,11 @@ interface TransactionsListProps {
   // Full history. Needed so a refund visible in the current month can be paired
   // to a purchase posted in a prior month (which isn't in `transactions`).
   allTransactions?: Transaction[];
+  // True if the current empty state is caused by an active search/chip filter
+  // rather than a genuinely empty month. Lets the empty state message
+  // suggest "clear filters" instead of "try a different month."
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
 }
 
 // Inline visual badges to make the dashboard self-explanatory: any
@@ -43,7 +48,9 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
   userRegion,
   onTransactionClick,
   limit = 10,
-  allTransactions
+  allTransactions,
+  filtersActive,
+  onClearFilters
 }) => {
   // Cheap wash lookup over the visible window so we can badge net-zero pairs.
   const washedIds = React.useMemo(() => findWashedTransactionIds(transactions), [transactions]);
@@ -78,10 +85,23 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </div>
-        <p className="text-gray-700 font-medium">No transactions this month</p>
-        <p className="text-sm text-gray-500 mt-1">
-          Try a different month or sync your connected accounts.
-        </p>
+        {filtersActive ? (
+          <>
+            <p className="text-gray-700 font-medium">No matches for the current filters</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {onClearFilters
+                ? <>Adjust the chips above, or <button onClick={onClearFilters} className="text-indigo-600 hover:underline">clear all filters</button>.</>
+                : 'Adjust the search or filter chips above.'}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-700 font-medium">No transactions this month</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Try a different month or sync your connected accounts.
+            </p>
+          </>
+        )}
       </div>
     );
   }

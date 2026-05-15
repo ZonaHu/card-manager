@@ -69,20 +69,29 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
         Investment / TFSA / RRSP accounts use end-of-day balance snapshots from
         each sync — so backfill grows with the number of syncs you've done.
       </p>
-      <NetWorthBreakdown cards={cards} byCard={data[data.length - 1].byCard} userRegion={userRegion} />
+      {/* Breakdown reflects CURRENT balances (today's Plaid sync), not the
+          rolled-back/snapshotted last-eom point — users want "what's in my
+          accounts right now," not "what was in them on May 31." */}
+      <NetWorthBreakdown cards={cards} userRegion={userRegion} />
     </div>
   );
 };
 
 interface BreakdownProps {
   cards: Card[];
-  byCard: Record<number, number>;
   userRegion: UserRegion;
 }
 
-const NetWorthBreakdown: React.FC<BreakdownProps> = ({ cards, byCard, userRegion }) => {
+const NetWorthBreakdown: React.FC<BreakdownProps> = ({ cards, userRegion }) => {
   const [open, setOpen] = React.useState(false);
-  const breakdown = React.useMemo(() => computeBreakdown(cards, byCard), [cards, byCard]);
+  // Build the byCard map from card.balance directly (current sync values)
+  // so the breakdown matches the headline tiles + the actual account screen.
+  const currentByCard = React.useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const c of cards) m[c.id] = c.balance;
+    return m;
+  }, [cards]);
+  const breakdown = React.useMemo(() => computeBreakdown(cards, currentByCard), [cards, currentByCard]);
   const c = userRegion.currency;
 
   if (breakdown.entries.length === 0) return null;

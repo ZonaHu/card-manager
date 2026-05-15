@@ -949,6 +949,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               cards={cards}
               userRegion={userRegion}
               onTransactionClick={handleTransactionClick}
+              filtersActive={
+                searchQuery.trim().length > 0 ||
+                Object.keys(chipFilters).some(k => {
+                  const v = (chipFilters as any)[k];
+                  return v !== undefined && v !== null && v !== '' && v !== 'all' && v !== false;
+                })
+              }
+              onClearFilters={() => { setSearchQuery(''); setChipFilters({}); }}
             />
           </div>
         </div>
