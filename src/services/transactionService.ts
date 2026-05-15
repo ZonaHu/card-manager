@@ -78,4 +78,12 @@ export class TransactionService {
     const q = sinceDate ? `?since=${encodeURIComponent(sinceDate)}` : '';
     return this.apiCall(`/api/transactions/balance-snapshots${q}`);
   }
+
+  async getPlaidItems(): Promise<Array<{
+    id: number; institution_name: string | null;
+    last_synced_at: string | null; last_sync_attempt_at: string | null;
+    last_sync_error: string | null; needs_reauth: number;
+  }>> {
+    return this.apiCall('/api/plaid/items');
+  }
 }

@@ -17,6 +17,7 @@ import { matchesSearch } from '../utils/transactionSearch';
 
 // Components
 import { FinancialOverview } from './dashboard/FinancialOverview';
+import { SyncStalenessBanner } from './dashboard/SyncStalenessBanner';
 import { CategoryBreakdown } from './dashboard/CategoryBreakdown';
 import { TransactionFilters } from './dashboard/TransactionFilters';
 import { TransactionsList } from './dashboard/TransactionsList';
@@ -77,6 +78,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [reauthTarget, setReauthTarget] = useState<{ itemId: string; institutionName: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
+  const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
 
@@ -143,6 +145,13 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
         setSnapshots(snaps);
       } catch {
         /* non-fatal — chart falls back to rollback */
+      }
+
+      try {
+        const items = await transactionService.getPlaidItems();
+        setPlaidItems(items);
+      } catch {
+        /* non-fatal */
       }
 
       setUserRegion({
@@ -677,6 +686,9 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             </div>
           </div>
         )}
+
+        {/* Sync staleness nudge */}
+        <SyncStalenessBanner items={plaidItems} onSync={() => syncTransactions('recent')} />
 
         {/* Financial Overview */}
         <FinancialOverview

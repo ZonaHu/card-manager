@@ -692,6 +692,22 @@ module.exports = function makePlaidRoutes(deps) {
     }
   });
 
+  router.get('/items', authenticateToken, async (req, res) => {
+    try {
+      const items = await plaidItems.loadItemsForUser(db, req.user.userId);
+      res.json(items.map(i => ({
+        id: i.id,
+        institution_name: i.institution_name,
+        last_synced_at: i.last_synced_at,
+        last_sync_attempt_at: i.last_sync_attempt_at,
+        last_sync_error: i.last_sync_error,
+        needs_reauth: i.needs_reauth ? 1 : 0
+      })));
+    } catch (err) {
+      sendServerError(res, err, 'Failed to load Plaid items');
+    }
+  });
+
   // Webhook handler lives in app.js so it can run BEFORE express.json() and
   // see the raw request body (needed for the request_body_sha256 verification
   // claim Plaid signs).
