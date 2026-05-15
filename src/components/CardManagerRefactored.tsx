@@ -30,6 +30,8 @@ import { FixedCostsPanel } from './dashboard/FixedCostsPanel';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
+import ErrorBoundary from './ErrorBoundary';
+import { WidgetErrorFallback } from './dashboard/WidgetErrorFallback';
 // Recharts is heavy — lazy-load the chart so the initial bundle stays lean.
 const NetWorthChart = React.lazy(() =>
   import('./dashboard/NetWorthChart').then(m => ({ default: m.NetWorthChart }))
@@ -805,13 +807,21 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
         {/* Insights row — net worth + budgets + recurring */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <React.Suspense fallback={
-            <div className="bg-white rounded-xl p-6 shadow-lg text-sm text-gray-400">Loading chart…</div>
+          <ErrorBoundary fallback={(error, reset) =>
+            <WidgetErrorFallback error={error} reset={reset} title="Net worth chart unavailable" />
           }>
-            <NetWorthChart cards={cards} transactions={transactions} snapshots={snapshots} userRegion={userRegion} />
-          </React.Suspense>
+            <React.Suspense fallback={
+              <div className="bg-white rounded-xl p-6 shadow-lg text-sm text-gray-400">Loading chart…</div>
+            }>
+              <NetWorthChart cards={cards} transactions={transactions} snapshots={snapshots} userRegion={userRegion} />
+            </React.Suspense>
+          </ErrorBoundary>
           <BudgetPanel byCategory={monthlyData.byCategory} userRegion={userRegion} />
-          <RecurringList transactions={transactions} userRegion={userRegion} />
+          <ErrorBoundary fallback={(error, reset) =>
+            <WidgetErrorFallback error={error} reset={reset} title="Recurring detection unavailable" />
+          }>
+            <RecurringList transactions={transactions} userRegion={userRegion} />
+          </ErrorBoundary>
         </div>
 
         {/* Fixed monthly obligations + e-Transfer activity, side-by-side on
@@ -819,23 +829,31 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             Clicking a row drills down: drops a search filter into the txn list
             below and scrolls there so the user can see the underlying rows. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <FixedCostsPanel
-            transactions={transactions}
-            currentMonth={currentMonth}
-            userRegion={userRegion}
-            onItemClick={(query) => {
-              setSearchQuery(query);
-              scrollToTransactions();
-            }}
-          />
-          <ETransferPanel
-            transactions={monthlyData.transactions}
-            userRegion={userRegion}
-            onItemClick={(query) => {
-              setSearchQuery(query);
-              scrollToTransactions();
-            }}
-          />
+          <ErrorBoundary fallback={(error, reset) =>
+            <WidgetErrorFallback error={error} reset={reset} title="Fixed costs unavailable" />
+          }>
+            <FixedCostsPanel
+              transactions={transactions}
+              currentMonth={currentMonth}
+              userRegion={userRegion}
+              onItemClick={(query) => {
+                setSearchQuery(query);
+                scrollToTransactions();
+              }}
+            />
+          </ErrorBoundary>
+          <ErrorBoundary fallback={(error, reset) =>
+            <WidgetErrorFallback error={error} reset={reset} title="E-Transfer panel unavailable" />
+          }>
+            <ETransferPanel
+              transactions={monthlyData.transactions}
+              userRegion={userRegion}
+              onItemClick={(query) => {
+                setSearchQuery(query);
+                scrollToTransactions();
+              }}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* MoM / YoY spending comparison */}
