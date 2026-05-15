@@ -13,6 +13,7 @@ import { TransactionService } from '../services/transactionService';
 // Pure spend-calc lives in utils so it can be unit-tested.
 import { calculateMonthlyData } from '../utils/spendCalculation';
 import { transactionsToCsv, downloadCsv } from '../utils/csvExport';
+import { matchesSearch } from '../utils/transactionSearch';
 
 // Components
 import { FinancialOverview } from './dashboard/FinancialOverview';
@@ -864,8 +865,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 <button
                   onClick={() => {
                     const filtered = searchQuery.trim()
-                      ? monthlyData.transactions.filter(t =>
-                          (t.description ?? '').toLowerCase().includes(searchQuery.toLowerCase().trim()))
+                      ? monthlyData.transactions.filter(t => matchesSearch(t, searchQuery))
                       : monthlyData.transactions;
                     downloadCsv(`transactions-${currentMonth}.csv`, transactionsToCsv(filtered, cards));
                   }}
@@ -886,8 +886,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             <TransactionsList
               transactions={
                 searchQuery.trim()
-                  ? monthlyData.transactions.filter(t =>
-                      (t.description ?? '').toLowerCase().includes(searchQuery.toLowerCase().trim()))
+                  ? monthlyData.transactions.filter(t => matchesSearch(t, searchQuery))
                   : monthlyData.transactions
               }
               allTransactions={transactions}
