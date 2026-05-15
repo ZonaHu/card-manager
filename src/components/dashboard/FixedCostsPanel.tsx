@@ -54,7 +54,7 @@ export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, u
     'text-gray-500';
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg">
+    <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Home className="text-indigo-600" size={20} />
@@ -72,7 +72,7 @@ export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, u
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5 sm:space-y-2">
         {summary.entries.map(e => {
           const Icon = BUCKET_ICONS[e.bucket];
           const TrendIcon =
@@ -91,7 +91,7 @@ export const FixedCostsPanel: React.FC<Props> = ({ transactions, currentMonth, u
               key={e.label}
               type={clickable ? 'button' : undefined}
               onClick={clickable ? () => onItemClick!(searchKeyFor(e.label)) : undefined}
-              className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border border-gray-100 ${
+              className={`w-full text-left flex items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 ${
                 clickable ? 'hover:bg-gray-50 hover:border-indigo-200 cursor-pointer transition-colors' : ''
               }`}
             >

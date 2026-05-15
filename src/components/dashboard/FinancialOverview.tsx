@@ -25,11 +25,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   const netSpending = cashOutflow - monthlyData.income;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
       {/* Month Selector */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
+      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg">
         <div className="flex items-center gap-3 mb-2">
-          <Calendar className="text-indigo-600" size={24} />
+          <Calendar className="text-indigo-600 w-5 h-5 sm:w-6 sm:h-6" />
           <h3 className="text-lg font-semibold text-gray-900">Period</h3>
         </div>
         <input
@@ -43,13 +43,13 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       {/* Total Spending */}
       <button 
         onClick={onScrollToTransactions}
-        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
+        className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
       >
         <div className="flex items-center gap-3 mb-2">
-          <DollarSign className="text-red-600" size={24} />
+          <DollarSign className="text-red-600 w-5 h-5 sm:w-6 sm:h-6" />
           <h3 className="text-lg font-semibold text-gray-900">Spending</h3>
         </div>
-        <p className="text-2xl font-bold text-red-600">
+        <p className="text-xl sm:text-2xl font-bold text-red-600">
           {formatCurrency(monthlyData.spending, userRegion.currency)}
         </p>
         <p className="text-sm text-gray-500">{monthlyData.transactions.filter(t => t.amount < 0).length} transactions</p>
@@ -68,13 +68,13 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       {/* Total Income */}
       <button 
         onClick={onScrollToTransactions}
-        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
+        className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
       >
         <div className="flex items-center gap-3 mb-2">
-          <TrendingUp className="text-green-600" size={24} />
+          <TrendingUp className="text-green-600 w-5 h-5 sm:w-6 sm:h-6" />
           <h3 className="text-lg font-semibold text-gray-900">Income</h3>
         </div>
-        <p className="text-2xl font-bold text-green-600">
+        <p className="text-xl sm:text-2xl font-bold text-green-600">
           +{formatCurrency(monthlyData.income, userRegion.currency)}
         </p>
         <p className="text-sm text-gray-500">{monthlyData.transactions.filter(t => t.amount > 0).length} transactions</p>
@@ -83,13 +83,13 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       {/* Net Change */}
       <button 
         onClick={onScrollToTransactions}
-        className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
+        className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
       >
         <div className="flex items-center gap-3 mb-2">
-          <TrendingUp className={netSpending <= 0 ? "text-green-600" : "text-red-600"} size={24} />
+          <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 ${netSpending <= 0 ? "text-green-600" : "text-red-600"}`} />
           <h3 className="text-lg font-semibold text-gray-900">Net</h3>
         </div>
-        <p className={`text-2xl font-bold ${netSpending <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <p className={`text-xl sm:text-2xl font-bold ${netSpending <= 0 ? 'text-green-600' : 'text-red-600'}`}>
           {netSpending > 0 ? '-' : '+'}{formatCurrency(Math.abs(netSpending), userRegion.currency)}
         </p>
         <p className="text-sm text-gray-500">

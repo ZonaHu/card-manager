@@ -25,7 +25,7 @@ export const ETransferPanel: React.FC<Props> = ({ transactions, userRegion, onIt
   const c = userRegion.currency;
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg">
+    <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Send className="text-emerald-600" size={20} />
@@ -55,7 +55,7 @@ export const ETransferPanel: React.FC<Props> = ({ transactions, userRegion, onIt
         that spend.
       </p>
 
-      <div className="space-y-1.5 max-h-56 overflow-auto">
+      <div className="space-y-1.5 sm:space-y-2 max-h-56 overflow-auto">
         {groups.slice(0, 10).map(g => {
           const clickable = !!onItemClick;
           const Row = clickable ? 'button' : 'div';

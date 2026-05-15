@@ -33,7 +33,7 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
   const changePct = earliest !== 0 ? (change / Math.abs(earliest)) * 100 : 0;
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg">
+    <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="text-emerald-600" size={20} />
@@ -48,7 +48,8 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
           </div>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={200}>
+      <div className="h-44 sm:h-52">
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
           <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
@@ -61,6 +62,7 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
           <Line type="monotone" dataKey="total" stroke="#10b981" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
+      </div>
       <p className="text-xs text-gray-400 mt-2 leading-snug">
         Approximate. Cash + credit lines roll backward through transactions.
         Investment / TFSA / RRSP accounts use end-of-day balance snapshots from
