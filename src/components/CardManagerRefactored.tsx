@@ -13,7 +13,8 @@ import { TransactionService } from '../services/transactionService';
 // Pure spend-calc lives in utils so it can be unit-tested.
 import { calculateMonthlyData } from '../utils/spendCalculation';
 import { transactionsToCsv, downloadCsv } from '../utils/csvExport';
-import { matchesSearch } from '../utils/transactionSearch';
+import { matchesSearch, applyFilters } from '../utils/transactionSearch';
+import { TransactionFilterChips } from './dashboard/TransactionFilterChips';
 
 // Components
 import { FinancialOverview } from './dashboard/FinancialOverview';
@@ -77,6 +78,10 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [syncBanner, setSyncBanner] = useState<{show: boolean, message: string, type: 'success' | 'error' | 'info'} | null>(null);
   const [reauthTarget, setReauthTarget] = useState<{ itemId: string; institutionName: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [chipFilters, setChipFilters] = useState<{
+    category?: string; cardId?: number | null; pendingOnly?: boolean;
+    minAmount?: number; maxAmount?: number;
+  }>({});
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -884,9 +889,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 </div>
                 <button
                   onClick={() => {
-                    const filtered = searchQuery.trim()
-                      ? monthlyData.transactions.filter(t => matchesSearch(t, searchQuery))
-                      : monthlyData.transactions;
+                    const filtered = applyFilters(monthlyData.transactions, { query: searchQuery, ...chipFilters });
                     downloadCsv(`transactions-${currentMonth}.csv`, transactionsToCsv(filtered, cards));
                   }}
                   className="flex items-center gap-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg"
@@ -903,12 +906,10 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               </div>
             </div>
 
+            <TransactionFilterChips cards={cards} filters={chipFilters} onChange={setChipFilters} />
+
             <TransactionsList
-              transactions={
-                searchQuery.trim()
-                  ? monthlyData.transactions.filter(t => matchesSearch(t, searchQuery))
-                  : monthlyData.transactions
-              }
+              transactions={applyFilters(monthlyData.transactions, { query: searchQuery, ...chipFilters })}
               allTransactions={transactions}
               cards={cards}
               userRegion={userRegion}
