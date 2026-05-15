@@ -19,6 +19,7 @@ import { TransactionFilterChips } from './dashboard/TransactionFilterChips';
 // Components
 import { FinancialOverview } from './dashboard/FinancialOverview';
 import { SyncStalenessBanner } from './dashboard/SyncStalenessBanner';
+import { SyncStatusList } from './dashboard/SyncStatusList';
 import { CategoryBreakdown } from './dashboard/CategoryBreakdown';
 import { TransactionFilters } from './dashboard/TransactionFilters';
 import { TransactionsList } from './dashboard/TransactionsList';
@@ -548,6 +549,8 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                       <div className="text-sm text-gray-500">Snapshot the local database</div>
                     </div>
                   </button>
+
+                  <SyncStatusList items={plaidItems} />
 
                   <div className="px-4 py-2 border-t border-gray-100"></div>
 
