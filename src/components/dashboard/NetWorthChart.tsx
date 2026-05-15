@@ -1,8 +1,9 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Card, Transaction, UserRegion } from '../../types';
 import { computeNetWorthHistory } from '../../utils/netWorthHistory';
+import { computeBreakdown } from '../../utils/netWorthBreakdown';
 import { formatCurrency } from '../../utils/currency';
 
 interface NetWorthChartProps {
@@ -68,6 +69,89 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
         Investment / TFSA / RRSP accounts use end-of-day balance snapshots from
         each sync — so backfill grows with the number of syncs you've done.
       </p>
+      <NetWorthBreakdown cards={cards} byCard={data[data.length - 1].byCard} userRegion={userRegion} />
+    </div>
+  );
+};
+
+interface BreakdownProps {
+  cards: Card[];
+  byCard: Record<number, number>;
+  userRegion: UserRegion;
+}
+
+const NetWorthBreakdown: React.FC<BreakdownProps> = ({ cards, byCard, userRegion }) => {
+  const [open, setOpen] = React.useState(false);
+  const breakdown = React.useMemo(() => computeBreakdown(cards, byCard), [cards, byCard]);
+  const c = userRegion.currency;
+
+  if (breakdown.entries.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between text-sm text-gray-700 hover:text-gray-900"
+      >
+        <span className="font-medium">Account breakdown</span>
+        <span className="text-xs text-gray-500 flex items-center gap-1">
+          {breakdown.entries.length} account{breakdown.entries.length !== 1 ? 's' : ''}
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-emerald-50 rounded p-2">
+              <div className="text-emerald-700 uppercase tracking-wide">Assets</div>
+              <div className="text-sm font-semibold text-emerald-900">
+                {formatCurrency(breakdown.totalAssets, c)}
+              </div>
+            </div>
+            <div className="bg-rose-50 rounded p-2">
+              <div className="text-rose-700 uppercase tracking-wide">Liabilities</div>
+              <div className="text-sm font-semibold text-rose-900">
+                {formatCurrency(breakdown.totalLiabilities, c)}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 max-h-64 overflow-auto">
+            {breakdown.entries.map(e => {
+              const isAsset = e.kind === 'asset';
+              const pct = (e.share * 100).toFixed(1);
+              return (
+                <div key={e.card_id} className="flex items-center gap-2 text-xs">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-gray-900">{e.name}</span>
+                      <span className={`whitespace-nowrap font-medium ${isAsset ? 'text-gray-900' : 'text-rose-700'}`}>
+                        {isAsset ? '' : '-'}{formatCurrency(Math.abs(e.balance), c)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded overflow-hidden">
+                        <div
+                          className={`h-full ${isAsset ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                          style={{ width: `${e.share * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-gray-500 whitespace-nowrap w-12 text-right">{pct}%</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-[10px] text-gray-400">
+            Percentages are share of gross net worth (assets + |liabilities|).
+            Bar lengths and percentages always sum to 100%.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
