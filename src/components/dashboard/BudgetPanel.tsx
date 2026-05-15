@@ -123,9 +123,21 @@ export const BudgetPanel: React.FC<BudgetPanelProps> = ({ byCategory, userRegion
           </div>
         </div>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          No budgets set. Define monthly targets per category to see over/under at a glance.
-        </p>
+        <div className="text-center py-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-50 rounded-full mb-3">
+            <Target className="text-indigo-400" size={20} />
+          </div>
+          <p className="text-sm text-gray-700 font-medium mb-1">No budgets set</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Define monthly targets to see over/under at a glance.
+          </p>
+          <button
+            onClick={startEdit}
+            className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700"
+          >
+            Set up budgets
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
           {rows.map(row => (

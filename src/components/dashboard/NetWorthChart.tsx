@@ -25,7 +25,22 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ cards, transaction
   );
 
   if (data.length < 2) {
-    return null;
+    return (
+      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="text-emerald-600" size={20} />
+          <h3 className="text-lg font-semibold text-gray-900">Net Worth</h3>
+        </div>
+        <div className="text-center py-8">
+          <p className="text-sm text-gray-700 font-medium mb-1">Not enough history yet</p>
+          <p className="text-xs text-gray-500">
+            Sync your accounts a few times — once there's at least one prior month of
+            transactions or snapshots, the chart line will populate.
+          </p>
+        </div>
+        <NetWorthBreakdown cards={cards} userRegion={userRegion} />
+      </div>
+    );
   }
 
   const latest = data[data.length - 1].total;
