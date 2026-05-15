@@ -124,9 +124,9 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const card = cards.find(c => c.id === transaction.cardId);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div role="dialog" aria-modal="true" aria-labelledby="edit-transaction-title" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col my-auto">
-        <h2 className="text-xl font-semibold px-6 pt-6 pb-3 flex-shrink-0">Edit Transaction</h2>
+        <h2 id="edit-transaction-title" className="text-xl font-semibold px-6 pt-6 pb-3 flex-shrink-0">Edit Transaction</h2>
 
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto px-6 space-y-4">

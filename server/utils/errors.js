@@ -10,6 +10,10 @@ function newRequestId() {
 }
 
 function sendServerError(res, err, publicMessage = 'Server error', status = 500) {
+  // The requestId middleware already set res.locals.requestId AND the
+  // X-Request-ID response header before any route ran. Always prefer that
+  // value so the response body, header, and pino log line all reference
+  // the same id — generating a fresh one here would desync them.
   const requestId = (res.locals && res.locals.requestId) || newRequestId();
   logger.error(publicMessage, {
     requestId,

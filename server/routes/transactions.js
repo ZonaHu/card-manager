@@ -41,7 +41,10 @@ module.exports = function makeTransactionRoutes(deps) {
 
   router.post('/', authenticateToken, (req, res) => {
     const { cardId, amount, description, category, date } = req.body;
-    if (!cardId || !amount || !description || !category || !date) {
+    // amount=0 is a valid (if unusual) input — guard explicitly instead of
+    // using `!amount`, which falsey-rejects 0 and produces a misleading
+    // "All fields are required" error.
+    if (!cardId || amount === undefined || amount === null || !description || !category || !date) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 

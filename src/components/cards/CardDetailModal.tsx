@@ -88,7 +88,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
     .slice(0, 10);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" aria-labelledby="card-detail-title" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
@@ -98,7 +98,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                 <CreditCard className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold">{card.name}</h2>
+                <h2 id="card-detail-title" className="text-2xl font-bold">{card.name}</h2>
                 <p className="text-blue-100">•••• {card.last_four}</p>
                 {card.institution_name && (
                   <p className="text-blue-200 text-sm">{card.institution_name}</p>

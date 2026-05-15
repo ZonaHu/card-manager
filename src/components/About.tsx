@@ -9,7 +9,7 @@ interface AboutProps {
 const About: React.FC<AboutProps> = ({ onClose }) => {
   useEscapeKey(true, onClose);
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" aria-labelledby="about-title" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
@@ -17,7 +17,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
             <div className="flex items-center gap-3">
               <Shield className="w-8 h-8" />
               <div>
-                <h2 className="text-2xl font-bold">About Card Manager</h2>
+                <h2 id="about-title" className="text-2xl font-bold">About Card Manager</h2>
                 <p className="text-blue-100">Security, Privacy & How It Works</p>
               </div>
             </div>

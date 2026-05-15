@@ -655,11 +655,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
         {/* Sync Banner */}
         {syncBanner?.show && (
-          <div className={`border rounded-lg p-4 mb-6 flex items-center justify-between ${
-            syncBanner.type === 'success' ? 'bg-green-50 border-green-200' :
-            syncBanner.type === 'error' ? 'bg-red-50 border-red-200' :
-            'bg-blue-50 border-blue-200'
-          }`}>
+          <div
+            role="status"
+            aria-live={syncBanner.type === 'error' ? 'assertive' : 'polite'}
+            className={`border rounded-lg p-4 mb-6 flex items-center justify-between ${
+              syncBanner.type === 'success' ? 'bg-green-50 border-green-200' :
+              syncBanner.type === 'error' ? 'bg-red-50 border-red-200' :
+              'bg-blue-50 border-blue-200'
+            }`}>
             <div className="flex items-center gap-3">
               {syncBanner.type === 'success' && (
                 <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
@@ -684,6 +687,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             </div>
             <button
               onClick={() => setSyncBanner(null)}
+              aria-label="Dismiss notification"
               className={`text-sm px-3 py-1 rounded-lg transition-colors ${
                 syncBanner.type === 'success' ? 'text-green-600 hover:bg-green-100' :
                 syncBanner.type === 'error' ? 'text-red-600 hover:bg-red-100' :

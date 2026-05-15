@@ -71,11 +71,11 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
   };
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" aria-labelledby="region-selector-title" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
         <div className="text-center mb-6">
           <Globe className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-          <h2 className="text-2xl font-semibold text-gray-900">Choose Your Region</h2>
+          <h2 id="region-selector-title" className="text-2xl font-semibold text-gray-900">Choose Your Region</h2>
           <p className="text-gray-600 mt-2">
             Select your country to connect the right banks and use the correct currency.
           </p>
