@@ -7,6 +7,7 @@ import { CATEGORIES, getCategoryColor } from '../constants/categories';
 
 // Hooks and services
 import { useApi } from '../hooks/useApi';
+import { useGlobalShortcut } from '../hooks/useGlobalShortcut';
 import { CardService } from '../services/cardService';
 import { TransactionService } from '../services/transactionService';
 
@@ -89,6 +90,9 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useGlobalShortcut('k', () => searchInputRef.current?.focus());
 
   // Hooks and services
   const { apiCall, error, setError, loading: apiLoading } = useApi(token);
@@ -906,10 +910,11 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 <div className="relative">
                   <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
+                    ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search…"
+                    placeholder="Search (⌘K)…"
                     className="pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44"
                   />
                 </div>
