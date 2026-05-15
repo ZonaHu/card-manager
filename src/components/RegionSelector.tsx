@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, DollarSign, CheckCircle } from 'lucide-react';
+import { Globe, DollarSign, CheckCircle, Check } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 interface RegionSelectorProps {
   token: string;
@@ -9,6 +11,7 @@ interface RegionSelectorProps {
 }
 
 const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected, onClose, currentRegion }) => {
+  useEscapeKey(true, onClose);
   const [selectedRegion, setSelectedRegion] = useState(currentRegion || 'US');
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +21,6 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
       name: 'United States',
       currency: 'USD',
       currencyName: 'US Dollar',
-      flag: '🇺🇸',
       features: [
         '11,000+ financial institutions',
         'Major banks: Chase, Wells Fargo, Bank of America',
@@ -30,7 +32,6 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
       name: 'Canada',
       currency: 'CAD',
       currencyName: 'Canadian Dollar',
-      flag: '🇨🇦',
       features: [
         '200+ Canadian financial institutions',
         'Major banks: RBC, TD, Scotiabank, BMO',
@@ -44,10 +45,11 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
     try {
       const region = regions.find(r => r.code === selectedRegion)!;
       
-      const response = await fetch('http://localhost:3001/api/user/preferences', {
+      const response = await fetch(`${API_BASE_URL}/api/user/preferences`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -69,7 +71,7 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
         <div className="text-center mb-6">
           <Globe className="w-12 h-12 text-blue-600 mx-auto mb-3" />
@@ -92,7 +94,6 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">{region.flag}</span>
                   <div>
                     <h3 className="font-semibold text-gray-900">{region.name}</h3>
                     <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -109,7 +110,7 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
               <div className="space-y-1 text-sm text-gray-600">
                 {region.features.map((feature, index) => (
                   <div key={index} className="flex items-start gap-2">
-                    <span className="text-green-500 mt-0.5">✓</span>
+                    <Check size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
                     <span>{feature}</span>
                   </div>
                 ))}
@@ -120,7 +121,7 @@ const RegionSelector: React.FC<RegionSelectorProps> = ({ token, onRegionSelected
 
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
           <div className="flex items-start gap-2">
-            <span className="text-amber-600">⚠️</span>
+            <span className="text-amber-600 font-semibold">Note:</span>
             <div className="text-sm text-amber-800">
               <p className="font-medium mb-1">Important:</p>
               <p>You can only connect to banks in your selected region. Choose the country where your bank accounts are located.</p>

@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -20,5 +22,15 @@
     "react-plaid-link": "^3.6.1",
     "recharts": "^2.8.0",
     "vite": "^4.5.5"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "happy-dom": "^20.9.0",
+    "jsdom": "^29.1.1",
+    "sqlite3": "^6.0.1",
+    "supertest": "^7.2.2",
+    "vitest": "^1.6.1"
   }
 }

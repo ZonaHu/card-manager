@@ -3,6 +3,7 @@ import type { Transaction, Card } from '../../types';
 import { CATEGORIES } from '../../constants/categories';
 import { API_BASE_URL } from '../../config/api';
 import { RulePreviewPopover } from '../dashboard/RulePreviewPopover';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface TransactionEditModalProps {
   transaction: Transaction;
@@ -29,6 +30,8 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   onCancel,
   onReimbursementChange
 }) => {
+  useEscapeKey(true, onCancel);
+
   const [amount, setAmount] = useState(Math.abs(transaction.amount).toString());
   const [description, setDescription] = useState(transaction.description);
   const [category, setCategory] = useState(transaction.category);
