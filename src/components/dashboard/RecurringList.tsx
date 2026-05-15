@@ -4,6 +4,7 @@ import type { Transaction, UserRegion } from '../../types';
 import { detectRecurringTransactions } from '../../utils/recurringDetection';
 import { findWashedTransactionIds } from '../../utils/spendCalculation';
 import { formatCurrency } from '../../utils/currency';
+import { isFixedCost } from '../../utils/fixedCosts';
 
 interface RecurringListProps {
   transactions: Transaction[]; // pass the FULL history, not just current month
@@ -19,9 +20,11 @@ export const RecurringList: React.FC<RecurringListProps> = ({ transactions, user
   const recurring = React.useMemo(() => {
     // Filter out fee/rebate wash pairs first so things like BMO's monthly
     // "[SC]PREMIUM PLAN" charge (canceled by "[SC]FULL PLAN FEE REBATE") don't
-    // surface as a recurring subscription cost.
+    // surface as a recurring subscription cost. Also drop anything already
+    // covered by the FixedCostsPanel (rent/utilities/internet/mobile) — keeping
+    // them in both lists makes the dashboard feel duplicative.
     const washed = findWashedTransactionIds(transactions);
-    const clean = transactions.filter(t => !washed.has(t.id));
+    const clean = transactions.filter(t => !washed.has(t.id) && !isFixedCost(t));
     return detectRecurringTransactions(clean);
   }, [transactions]);
 

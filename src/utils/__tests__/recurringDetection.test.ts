@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { detectRecurringTransactions } from '../recurringDetection';
+import { isFixedCost } from '../fixedCosts';
 import type { Transaction } from '../../types';
 
 let idCounter = 0;
@@ -79,5 +80,14 @@ describe('detectRecurringTransactions', () => {
     const result = detectRecurringTransactions(txs);
     expect(result[0].description).toContain('BIG');
     expect(result[1].description).toContain('SMALL');
+  });
+
+  it('exposes isFixedCost so callers can dedupe against the FixedCosts panel', () => {
+    // Sanity check — the import resolves and the helper recognises a Chexy
+    // rent row. The actual filtering happens at the component layer.
+    expect(isFixedCost({
+      id: 1, card_id: 1, cardId: 1, amount: -1500, description: 'CHEXY RENT',
+      category: 'Bills', date: '2026-04-01', source: 'plaid'
+    } as any)).toBe(true);
   });
 });
