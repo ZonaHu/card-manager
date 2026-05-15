@@ -121,11 +121,12 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const card = cards.find(c => c.id === transaction.cardId);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">Edit Transaction</h2>
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col my-auto">
+        <h2 className="text-xl font-semibold px-6 pt-6 pb-3 flex-shrink-0">Edit Transaction</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Card</label>
             <div className="p-3 bg-gray-100 rounded-lg text-sm text-gray-600">
@@ -281,7 +282,10 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
             </div>
           )}
 
-          <div className="flex gap-3 pt-4">
+          </div>
+          {/* Action bar pinned at the bottom — stays visible no matter how
+              long the scrollable form body grows. */}
+          <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white flex-shrink-0">
             <button
               type="button"
               onClick={onCancel}
