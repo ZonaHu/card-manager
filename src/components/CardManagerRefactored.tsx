@@ -28,6 +28,7 @@ import { BudgetPanel } from './dashboard/BudgetPanel';
 import { RecurringList } from './dashboard/RecurringList';
 import { ETransferPanel } from './dashboard/ETransferPanel';
 import { FixedCostsPanel } from './dashboard/FixedCostsPanel';
+import { DashboardSkeleton } from './dashboard/DashboardSkeleton';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
@@ -349,14 +350,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
   // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your financial data...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
