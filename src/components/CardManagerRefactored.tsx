@@ -47,6 +47,10 @@ import RegionSelector from './RegionSelector';
 
 // Utilities
 import { formatCurrency } from '../utils/currency';
+import { readPersisted, writePersisted } from '../utils/persistedState';
+
+const SEARCH_KEY = 'card-manager:search';
+const CHIPS_KEY = 'card-manager:chip-filters';
 
 interface CardManagerProps {
   user: User;
@@ -82,11 +86,13 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [showAbout, setShowAbout] = useState(false);
   const [syncBanner, setSyncBanner] = useState<{show: boolean, message: string, type: 'success' | 'error' | 'info'} | null>(null);
   const [reauthTarget, setReauthTarget] = useState<{ itemId: string; institutionName: string } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState<string>(
+    () => readPersisted(SEARCH_KEY, '')
+  );
   const [chipFilters, setChipFilters] = useState<{
     category?: string; cardId?: number | null; pendingOnly?: boolean;
     minAmount?: number; maxAmount?: number;
-  }>({});
+  }>(() => readPersisted(CHIPS_KEY, {}));
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -94,6 +100,10 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useGlobalShortcut('k', () => searchInputRef.current?.focus());
+
+  // Persist search + chip filters to localStorage
+  useEffect(() => { writePersisted(SEARCH_KEY, searchQuery); }, [searchQuery]);
+  useEffect(() => { writePersisted(CHIPS_KEY, chipFilters); }, [chipFilters]);
 
   // Hooks and services
   const { apiCall, error, setError, loading: apiLoading } = useApi(token);
