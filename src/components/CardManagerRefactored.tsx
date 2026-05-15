@@ -552,6 +552,11 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
                   <SyncStatusList items={plaidItems} />
 
+                  <div className="px-4 py-2 text-[10px] text-gray-400 border-t border-gray-100 flex items-center justify-between">
+                    <span>v{__APP_VERSION__}</span>
+                    <span className="font-mono">{__COMMIT_SHA__}</span>
+                  </div>
+
                   <div className="px-4 py-2 border-t border-gray-100"></div>
 
                   <button
