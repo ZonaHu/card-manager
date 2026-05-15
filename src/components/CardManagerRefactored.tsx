@@ -121,6 +121,27 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
 
   useGlobalShortcut('k', () => searchInputRef.current?.focus());
 
+  // Burger-menu dismiss handling: click outside the dropdown OR press Escape
+  // should close it. Without this the menu eats keyboard focus + traps the
+  // user inside until they click the burger button again.
+  useEffect(() => {
+    if (!showMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowMenu(false);
+    };
+    window.addEventListener('mousedown', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onClick);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showMenu]);
+
   // Persist search + chip filters to localStorage
   useEffect(() => { writePersisted(SEARCH_KEY, searchQuery); }, [searchQuery]);
   useEffect(() => { writePersisted(CHIPS_KEY, chipFilters); }, [chipFilters]);
@@ -432,14 +453,16 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowMenu(!showMenu)}
-                className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors"
-                title="Open menu"
+                className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-colors"
+                aria-label={showMenu ? 'Close menu' : 'Open menu'}
+                aria-haspopup="menu"
+                aria-expanded={showMenu}
               >
                 {showMenu ? <X size={20} /> : <Menu size={20} />}
               </button>
-              
+
               {showMenu && (
-                <div className="absolute right-0 top-12 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-64 z-50">
+                <div role="menu" className="absolute right-0 top-12 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-64 z-50">
                   {/* Sync Options */}
                   {cards.some(card => card.connected) && (
                     <>

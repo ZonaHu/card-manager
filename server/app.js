@@ -99,12 +99,16 @@ function makeApp(db, opts = {}) {
   app.post('/api/plaid/webhook',
     express.raw({ type: '*/*', limit: '100kb' }),
     async (req, res) => {
-      const rawBody = req.body && Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
-      const ok = await verifyPlaidWebhook(req, rawBody);
+      // Pass the raw Buffer to the verifier so SHA-256 sees the exact bytes
+      // Plaid signed. Converting to utf8 first round-trips through string
+      // coercion and would mis-hash if the payload ever contains non-utf8
+      // bytes (replacement characters change the byte sequence).
+      const rawBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const ok = await verifyPlaidWebhook(req, rawBuf);
       if (!ok) return res.status(401).json({ error: 'Invalid webhook signature' });
 
       let body = {};
-      try { body = rawBody ? JSON.parse(rawBody) : {}; } catch { /* keep empty */ }
+      try { body = rawBuf.length ? JSON.parse(rawBuf.toString('utf8')) : {}; } catch { /* keep empty */ }
       const { webhook_type, webhook_code, item_id, error } = body;
       logger.info('plaid webhook', { webhook_type, webhook_code, item_id });
 

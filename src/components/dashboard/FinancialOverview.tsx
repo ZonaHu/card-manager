@@ -54,7 +54,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         <p className="text-xl sm:text-2xl font-bold text-red-600">
           {formatCurrency(monthlyData.spending, userRegion.currency)}
         </p>
-        <p className="text-sm text-gray-500">{monthlyData.transactions.filter(t => t.amount < 0).length} transactions</p>
+        <p className="text-sm text-gray-500">
+          {monthlyData.spendingTxnCount ?? monthlyData.transactions.filter(t => t.amount < 0).length} transactions
+        </p>
         {(monthlyData.reimbursementsApplied ?? 0) > 0 && (
           <p className="text-xs text-emerald-700 mt-1">
             Net of {formatCurrency(monthlyData.reimbursementsApplied!, userRegion.currency)} reimbursements
@@ -79,7 +81,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         <p className="text-xl sm:text-2xl font-bold text-green-600">
           +{formatCurrency(monthlyData.income, userRegion.currency)}
         </p>
-        <p className="text-sm text-gray-500">{monthlyData.transactions.filter(t => t.amount > 0).length} transactions</p>
+        <p className="text-sm text-gray-500">
+          {monthlyData.incomeTxnCount ?? monthlyData.transactions.filter(t => t.amount > 0).length} transactions
+        </p>
       </button>
 
       {/* Net Change */}

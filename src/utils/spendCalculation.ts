@@ -248,6 +248,12 @@ export function calculateMonthlyData({
   let income = 0;
   let eTransfersIn = 0;
   let eTransfersOut = 0;
+  // Counts of rows that actually contributed to the headline numbers above.
+  // The dashboard tile captions use these instead of the raw visible-row
+  // count so "N transactions" matches what the spending/income totals
+  // actually came from (excludes pending, transfers, washes, etc.).
+  let spendingTxnCount = 0;
+  let incomeTxnCount = 0;
 
   for (const t of filtered) {
     // Pending transactions can be modified or removed by Plaid before they
@@ -288,6 +294,7 @@ export function calculateMonthlyData({
       if (isCC) {
         const reimbursed = reimbursementByTarget.get(t.id) || 0;
         creditCardSpending += Math.max(0, Math.abs(t.amount) - reimbursed);
+        spendingTxnCount++;
         continue;
       }
       const amount = Math.abs(t.amount);
@@ -347,6 +354,7 @@ export function calculateMonthlyData({
       const reimbursed = reimbursementByTarget.get(t.id) || 0;
       depositAccountCashOutflow += amount;
       depositAccountSpending += Math.max(0, amount - reimbursed);
+      spendingTxnCount++;
     } else if (t.amount > 0) {
       // Credit-card positives split into two kinds:
       //   "PAYMENT RECEIVED" / generic positive  → debt reduction, ignore
@@ -363,7 +371,10 @@ export function calculateMonthlyData({
         depositAccountCashOutflow -= t.amount;
         continue;
       }
-      if (countAsIncome(t)) income += t.amount;
+      if (countAsIncome(t)) {
+        income += t.amount;
+        incomeTxnCount++;
+      }
     }
   }
 
@@ -384,6 +395,8 @@ export function calculateMonthlyData({
     byCategory,
     eTransfersIn,
     eTransfersOut,
-    reimbursementsApplied
+    reimbursementsApplied,
+    spendingTxnCount,
+    incomeTxnCount
   };
 }

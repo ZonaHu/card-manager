@@ -82,6 +82,11 @@ export interface MonthlyData {
   // value; already subtracted from `spending`). Lets the UI show "Spent $X,
   // reimbursed $Y, net $Z" so the headline number matches reality.
   reimbursementsApplied?: number;
+  // Counts of rows that actually contributed to the headline spending/income
+  // numbers. Excludes pending, washes, transfers, e-transfers, and other
+  // skipped rows so the "N transactions" caption matches what's counted.
+  spendingTxnCount?: number;
+  incomeTxnCount?: number;
 }
 
 export interface UserRegion {

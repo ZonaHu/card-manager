@@ -25,7 +25,11 @@ const REAUTH_ERROR_CODES = new Set([
 // Description-based detectors that take precedence over Plaid's category
 // signal, since Plaid often returns "Other" / TRANSFER_IN for things the user
 // thinks of as ATM withdrawals, bank deposits, or rent.
-const CASH_OUT_RE = /\b(atm withdrawal|atm wd|cash advance|bank draft|\[dm\] *\d+ *draft|^draft\b)/i;
+// Cash withdrawal patterns. The standalone `^draft` term was previously here
+// but matched too aggressively (e.g. "Draft Beer Hall"); the bracket-code
+// variant covers the actual bank format we see ("[DM]0442 DRAFT 020748373")
+// and "bank draft" / "money order" cover the natural-language cases.
+const CASH_OUT_RE = /\b(atm withdrawal|atm wd|cash advance|bank draft|money order|\[dm\] *\d+ *draft)\b/i;
 const DEPOSIT_RE = /\b(deposit paypal|internet deposit|^deposit\b|electronic funds transfer|direct deposit)\b/i;
 // Rent + utility/telecom vendors Plaid often miscategorizes. Bills bucket so
 // the existing budget/category breakdown handles them correctly; the
