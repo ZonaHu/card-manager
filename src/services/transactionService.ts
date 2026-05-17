@@ -79,6 +79,13 @@ export class TransactionService {
     return this.apiCall(`/api/transactions/balance-snapshots${q}`);
   }
 
+  async batchRecategorize(ids: number[], category: string): Promise<{ ok: boolean; updated: number }> {
+    return this.apiCall('/api/transactions/batch-recategorize', {
+      method: 'POST',
+      body: JSON.stringify({ ids, category })
+    });
+  }
+
   async getPlaidItems(): Promise<Array<{
     id: number; institution_name: string | null;
     last_synced_at: string | null; last_sync_attempt_at: string | null;

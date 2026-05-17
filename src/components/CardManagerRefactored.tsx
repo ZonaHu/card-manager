@@ -24,6 +24,7 @@ import { SyncStatusList } from './dashboard/SyncStatusList';
 import { CategoryBreakdown } from './dashboard/CategoryBreakdown';
 import { TransactionFilters } from './dashboard/TransactionFilters';
 import { TransactionsList } from './dashboard/TransactionsList';
+import { TransactionSelectionBar } from './dashboard/TransactionSelectionBar';
 import { BudgetPanel } from './dashboard/BudgetPanel';
 import { RecurringList } from './dashboard/RecurringList';
 import { ETransferPanel } from './dashboard/ETransferPanel';
@@ -136,6 +137,20 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   };
 
   const clearTxSelection = () => setSelectedTxIds(new Set());
+
+  const applyBatchCategory = async (category: string) => {
+    if (selectedTxIds.size === 0) return;
+    const ids = Array.from(selectedTxIds);
+    try {
+      await transactionService.batchRecategorize(ids, category);
+      await loadData();
+      clearTxSelection();
+      setSyncBanner({ show: true, message: `Updated ${ids.length} transaction${ids.length === 1 ? '' : 's'}.`, type: 'success' });
+      setTimeout(() => setSyncBanner(null), 4000);
+    } catch (e: any) {
+      setSyncBanner({ show: true, message: `Bulk update failed: ${e.message}`, type: 'error' });
+    }
+  };
 
   const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
@@ -1125,6 +1140,12 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
         {showAbout && (
           <About onClose={() => setShowAbout(false)} />
         )}
+
+        <TransactionSelectionBar
+          selectedCount={selectedTxIds.size}
+          onApplyCategory={applyBatchCategory}
+          onClear={clearTxSelection}
+        />
       </div>
     </div>
   );
