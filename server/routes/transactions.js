@@ -205,5 +205,26 @@ module.exports = function makeTransactionRoutes(deps) {
       .catch(err => sendServerError(res, err));
   });
 
+  // Bulk category update. Body: { ids: number[], category: string }. Limits
+  // to 500 ids per call so a runaway client can't lock the DB; the dashboard
+  // never selects that many in a single action.
+  router.post('/batch-recategorize', authenticateToken, (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Number.isFinite) : null;
+    const category = typeof req.body?.category === 'string' ? req.body.category.trim() : '';
+    if (!ids || ids.length === 0) return res.status(400).json({ error: 'ids array is required' });
+    if (ids.length > 500) return res.status(400).json({ error: 'too many ids (max 500)' });
+    if (!category) return res.status(400).json({ error: 'category is required' });
+
+    const placeholders = ids.map(() => '?').join(',');
+    db.run(
+      `UPDATE transactions SET category = ? WHERE id IN (${placeholders}) AND user_id = ? AND deleted_at IS NULL`,
+      [category, ...ids, req.user.userId],
+      function (err) {
+        if (err) return sendServerError(res, err);
+        res.json({ ok: true, updated: this.changes });
+      }
+    );
+  });
+
   return router;
 };

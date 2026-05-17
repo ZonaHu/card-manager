@@ -170,3 +170,61 @@ describe('soft-delete + restore', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('POST /api/transactions/batch-recategorize', () => {
+  let app: any;
+  beforeEach(async () => { ({ app } = await buildTestApp()); });
+
+  async function seedThree(agent: any) {
+    await agent.post('/api/auth/register')
+      .send({ name: 'C', email: 'c@example.com', password: 'longenough123' });
+    const cardRes = await agent.post('/api/cards').send({
+      name: 'C Checking', type: 'debit', lastFour: '0001', balance: 1000
+    });
+    const cardId = cardRes.body.id;
+    const ids: number[] = [];
+    for (const desc of ['A', 'B', 'C']) {
+      const r = await agent.post('/api/transactions').send({
+        cardId, amount: -10, description: desc, category: 'Other', date: '2026-04-01'
+      });
+      ids.push(r.body.id);
+    }
+    return ids;
+  }
+
+  it('updates category on every supplied id (in caller\'s scope)', async () => {
+    const agent = request.agent(app);
+    const ids = await seedThree(agent);
+    const res = await agent.post('/api/transactions/batch-recategorize')
+      .send({ ids, category: 'Food' });
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(3);
+
+    const list = await agent.get('/api/transactions');
+    for (const id of ids) {
+      const row = list.body.find((t: any) => t.id === id);
+      expect(row.category).toBe('Food');
+    }
+  });
+
+  it('rejects empty ids array', async () => {
+    const agent = request.agent(app);
+    await seedThree(agent);
+    const res = await agent.post('/api/transactions/batch-recategorize')
+      .send({ ids: [], category: 'Food' });
+    expect(res.status).toBe(400);
+  });
+
+  it('cannot touch another user\'s rows', async () => {
+    const a = request.agent(app);
+    const aIds = await seedThree(a);
+
+    const b = request.agent(app);
+    await b.post('/api/auth/register')
+      .send({ name: 'B', email: 'b2@example.com', password: 'longenough123' });
+    const res = await b.post('/api/transactions/batch-recategorize')
+      .send({ ids: aIds, category: 'Food' });
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(0); // user_id filter zero'd out all matches
+  });
+});
