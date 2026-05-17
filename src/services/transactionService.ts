@@ -86,6 +86,15 @@ export class TransactionService {
     });
   }
 
+  async deleteTransaction(id: number): Promise<{ ok: boolean; id: number }> {
+    return this.apiCall(`/api/transactions/${id}`, { method: 'DELETE' });
+  }
+
+  async restoreTransaction(id: number): Promise<Transaction> {
+    const row = await this.apiCall(`/api/transactions/${id}/restore`, { method: 'POST' });
+    return { ...row, cardId: row.card_id };
+  }
+
   async getPlaidItems(): Promise<Array<{
     id: number; institution_name: string | null;
     last_synced_at: string | null; last_sync_attempt_at: string | null;

@@ -20,6 +20,7 @@ interface TransactionEditModalProps {
   // Called after a reimbursement link is changed so the parent can re-fetch
   // transactions and re-render aggregates. Optional — older callers still work.
   onReimbursementChange?: () => void;
+  onDelete?: (id: number, description: string) => void;
 }
 
 export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
@@ -28,7 +29,8 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   allTransactions,
   onSubmit,
   onCancel,
-  onReimbursementChange
+  onReimbursementChange,
+  onDelete
 }) => {
   useEscapeKey(true, onCancel);
 
@@ -288,7 +290,16 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
           </div>
           {/* Action bar pinned at the bottom — stays visible no matter how
               long the scrollable form body grows. */}
-          <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white flex-shrink-0">
+          <div className="flex gap-2 px-6 py-4 border-t border-gray-100 bg-white flex-shrink-0">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(transaction.id, transaction.description)}
+                className="bg-rose-50 text-rose-700 px-3 py-2 rounded-lg hover:bg-rose-100 text-sm font-medium"
+              >
+                Delete
+              </button>
+            )}
             <button
               type="button"
               onClick={onCancel}

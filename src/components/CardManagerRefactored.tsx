@@ -25,6 +25,7 @@ import { CategoryBreakdown } from './dashboard/CategoryBreakdown';
 import { TransactionFilters } from './dashboard/TransactionFilters';
 import { TransactionsList } from './dashboard/TransactionsList';
 import { TransactionSelectionBar } from './dashboard/TransactionSelectionBar';
+import { UndoDeleteBanner } from './dashboard/UndoDeleteBanner';
 import { BudgetPanel } from './dashboard/BudgetPanel';
 import { RecurringList } from './dashboard/RecurringList';
 import { ETransferPanel } from './dashboard/ETransferPanel';
@@ -118,6 +119,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
   const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
+  const [recentDelete, setRecentDelete] = useState<{ id: number; description: string } | null>(null);
 
   const toggleTxSelect = (id: number) => {
     setSelectedTxIds(prev => {
@@ -149,6 +151,29 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
       setTimeout(() => setSyncBanner(null), 4000);
     } catch (e: any) {
       setSyncBanner({ show: true, message: `Bulk update failed: ${e.message}`, type: 'error' });
+    }
+  };
+
+  const handleDeleteTransaction = async (id: number, description: string) => {
+    try {
+      await transactionService.deleteTransaction(id);
+      setShowTransactionEditModal(false);
+      setEditingTransaction(null);
+      setRecentDelete({ id, description });
+      await loadData();
+    } catch (e: any) {
+      setSyncBanner({ show: true, message: `Delete failed: ${e.message}`, type: 'error' });
+    }
+  };
+
+  const handleUndoDelete = async () => {
+    if (!recentDelete) return;
+    try {
+      await transactionService.restoreTransaction(recentDelete.id);
+      setRecentDelete(null);
+      await loadData();
+    } catch (e: any) {
+      setSyncBanner({ show: true, message: `Restore failed: ${e.message}`, type: 'error' });
     }
   };
 
@@ -1121,6 +1146,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               setEditingTransaction(null);
             }}
             onReimbursementChange={loadData}
+            onDelete={handleDeleteTransaction}
           />
         )}
 
@@ -1146,6 +1172,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           onApplyCategory={applyBatchCategory}
           onClear={clearTxSelection}
         />
+
+        {recentDelete && (
+          <UndoDeleteBanner
+            description={recentDelete.description}
+            onUndo={handleUndoDelete}
+            onDismiss={() => setRecentDelete(null)}
+          />
+        )}
       </div>
     </div>
   );
