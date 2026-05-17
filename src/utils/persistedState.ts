@@ -1,31 +1,45 @@
+// src/utils/persistedState.ts
+
 /**
- * Read a JSON value from localStorage with safe fallback when nothing is
- * stored, the key was deleted, or the stored payload is corrupted (e.g.
- * from a stale app version that wrote a different shape). Never throws.
+ * Read a JSON value from localStorage with safe fallback.
+ *
+ * When called with a version arg, the stored payload MUST be wrapped as
+ * `{ v: number, data: T }` and v must equal the requested version. Any
+ * other shape (legacy unversioned blob, lower version, higher version)
+ * falls back to the supplied default. This is how we let future shape
+ * changes invalidate stored state silently instead of handing the UI a
+ * payload it can't parse.
+ *
+ * Without a version arg, the original raw round-trip behavior is preserved.
  */
-export function readPersisted<T>(key: string, fallback: T): T {
+export function readPersisted<T>(key: string, fallback: T, version?: number): T {
   try {
     const raw = window.localStorage.getItem(key);
     if (raw === null) return fallback;
-    return JSON.parse(raw) as T;
+    const parsed = JSON.parse(raw);
+    if (version === undefined) return parsed as T;
+    if (parsed && typeof parsed === 'object' && parsed.v === version && 'data' in parsed) {
+      return parsed.data as T;
+    }
+    return fallback;
   } catch {
     return fallback;
   }
 }
 
 /**
- * Write a JSON-serializable value to localStorage. Passing `null` removes
- * the key entirely so callers can clear without juggling a separate
- * remove function. Errors (quota exceeded, private mode) are swallowed —
- * persistence is a nice-to-have, not a correctness boundary.
+ * Write a JSON-serializable value to localStorage. Pass a version to wrap
+ * as `{ v, data }`; readers can then detect schema drift on the next load.
+ * `null` removes the key entirely.
  */
-export function writePersisted(key: string, value: unknown): void {
+export function writePersisted(key: string, value: unknown, version?: number): void {
   try {
     if (value === null) {
       window.localStorage.removeItem(key);
       return;
     }
-    window.localStorage.setItem(key, JSON.stringify(value));
+    const payload = version === undefined ? value : { v: version, data: value };
+    window.localStorage.setItem(key, JSON.stringify(payload));
   } catch {
     /* ignore */
   }

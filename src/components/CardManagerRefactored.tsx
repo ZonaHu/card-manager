@@ -52,6 +52,7 @@ import type { PlaidItemSummary } from '../utils/syncStaleness';
 
 const SEARCH_KEY = 'card-manager:search';
 const CHIPS_KEY = 'card-manager:chip-filters';
+const PERSIST_VERSION = 1;
 
 // Tailwind's JIT can't see classes built from template literals, so a
 // `border-${color}-500` expression silently gets purged from the production
@@ -107,12 +108,12 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [syncBanner, setSyncBanner] = useState<{show: boolean, message: string, type: 'success' | 'error' | 'info'} | null>(null);
   const [reauthTarget, setReauthTarget] = useState<{ itemId: string; institutionName: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>(
-    () => readPersisted(SEARCH_KEY, '')
+    () => readPersisted(SEARCH_KEY, '', PERSIST_VERSION)
   );
   const [chipFilters, setChipFilters] = useState<{
     category?: string; cardId?: number | null; pendingOnly?: boolean;
     minAmount?: number; maxAmount?: number;
-  }>(() => readPersisted(CHIPS_KEY, {}));
+  }>(() => readPersisted(CHIPS_KEY, {}, PERSIST_VERSION));
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -143,8 +144,8 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   }, [showMenu]);
 
   // Persist search + chip filters to localStorage
-  useEffect(() => { writePersisted(SEARCH_KEY, searchQuery); }, [searchQuery]);
-  useEffect(() => { writePersisted(CHIPS_KEY, chipFilters); }, [chipFilters]);
+  useEffect(() => { writePersisted(SEARCH_KEY, searchQuery, PERSIST_VERSION); }, [searchQuery]);
+  useEffect(() => { writePersisted(CHIPS_KEY, chipFilters, PERSIST_VERSION); }, [chipFilters]);
 
   // Hooks and services
   const { apiCall, error, setError, loading: apiLoading } = useApi(token);
