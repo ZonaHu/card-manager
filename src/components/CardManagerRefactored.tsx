@@ -976,6 +976,13 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 >
                   <Download size={14} /> CSV
                 </button>
+                <button
+                  onClick={() => setShowAddTransaction(true)}
+                  className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 flex items-center gap-1.5"
+                  title="Manually add a transaction"
+                >
+                  <Plus size={14} /> Add transaction
+                </button>
                 <TransactionFilters
                   transactionFilter={transactionFilter}
                   transactionSort={transactionSort}
