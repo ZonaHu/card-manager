@@ -22,6 +22,12 @@ interface TransactionsListProps {
   // suggest "clear filters" instead of "try a different month."
   filtersActive?: boolean;
   onClearFilters?: () => void;
+  // New — bulk-selection wiring. When `selectedIds` is provided the list
+  // renders a checkbox per row; clicking a checkbox calls onToggleSelect
+  // with the row id. Omit both to keep the read-only behavior.
+  selectedIds?: Set<number>;
+  onToggleSelect?: (id: number) => void;
+  onToggleSelectAll?: (allVisibleIds: number[], target: boolean) => void;
 }
 
 // Inline visual badges to make the dashboard self-explanatory: any
@@ -50,7 +56,10 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
   limit = 10,
   allTransactions,
   filtersActive,
-  onClearFilters
+  onClearFilters,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll
 }) => {
   // Cheap wash lookup over the visible window so we can badge net-zero pairs.
   const washedIds = React.useMemo(() => findWashedTransactionIds(transactions), [transactions]);
@@ -76,6 +85,11 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
     return map;
   }, [allTransactions, transactions]);
   const displayTransactions = transactions.slice(0, limit);
+  const visibleIds = displayTransactions.map(t => t.id);
+  const allSelected = selectedIds !== undefined
+    && visibleIds.length > 0
+    && visibleIds.every(id => selectedIds.has(id));
+  const selectionEnabled = !!onToggleSelect;
 
   if (transactions.length === 0) {
     return (
@@ -108,6 +122,22 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
 
   return (
     <div className="space-y-3">
+      {selectionEnabled && onToggleSelectAll && (
+        <div className="flex items-center gap-2 text-xs text-gray-600 px-3">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={(e) => onToggleSelectAll(visibleIds, e.target.checked)}
+            aria-label="Select all visible transactions"
+            className="accent-indigo-600"
+          />
+          <span>
+            {selectedIds && selectedIds.size > 0
+              ? `${selectedIds.size} selected`
+              : 'Select all'}
+          </span>
+        </div>
+      )}
       {displayTransactions.map(transaction => {
         const card = cards.find(c => c.id === transaction.cardId);
         const isTransfer = transaction.category === 'Transfer';
@@ -126,60 +156,75 @@ export const TransactionsList: React.FC<TransactionsListProps> = ({
           : 0;
 
         return (
-          <button
+          <div
             key={transaction.id}
-            onClick={() => onTransactionClick(transaction)}
-            className="w-full flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 hover:border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-200 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 hover:border-gray-200 focus-within:ring-2 focus-within:ring-indigo-300 focus-within:border-indigo-200 transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${getCategoryColor(transaction.category)}`} />
-              <div className="text-left">
-                {/* All children below are <span> / <div> — <p> inside a <button>
-                    is invalid HTML and triggers a hydration warning. */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-gray-900">{transaction.description}</span>
-                  {isTransfer && <Badge tone="slate" title="Not counted in spending or income">Transfer</Badge>}
-                  {isWashed && <Badge tone="amber" title="Paired with an opposite-sign entry (e.g. fee + rebate) — net zero">Wash</Badge>}
-                  {isSplit && <Badge tone="purple" title="Auto-split off a larger charge by a split rule">Split</Badge>}
-                  {isRefund && <Badge tone="blue" title="Merchant refund — subtracted from card spending">Refund</Badge>}
-                  {isPending && <Badge tone="blue" title="Not yet posted — excluded from totals until it settles">Pending</Badge>}
-                  {isETx && <Badge tone="emerald" title="Interac e-Transfer — not counted in spending or income">E-Transfer</Badge>}
-                  {isReimbursement && <Badge tone="emerald" title="Linked to a purchase — offsets that spend instead of counting as income">Reimburse</Badge>}
+            {selectionEnabled && (
+              <input
+                type="checkbox"
+                checked={selectedIds!.has(transaction.id)}
+                onChange={() => onToggleSelect!(transaction.id)}
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Select transaction ${transaction.description}`}
+                className="mr-3 accent-indigo-600 flex-shrink-0"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => onTransactionClick(transaction)}
+              className="flex-1 flex items-center justify-between text-left cursor-pointer focus:outline-none"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${getCategoryColor(transaction.category)}`} />
+                <div className="text-left">
+                  {/* All children below are <span> / <div> — <p> inside a <button>
+                      is invalid HTML and triggers a hydration warning. */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900">{transaction.description}</span>
+                    {isTransfer && <Badge tone="slate" title="Not counted in spending or income">Transfer</Badge>}
+                    {isWashed && <Badge tone="amber" title="Paired with an opposite-sign entry (e.g. fee + rebate) — net zero">Wash</Badge>}
+                    {isSplit && <Badge tone="purple" title="Auto-split off a larger charge by a split rule">Split</Badge>}
+                    {isRefund && <Badge tone="blue" title="Merchant refund — subtracted from card spending">Refund</Badge>}
+                    {isPending && <Badge tone="blue" title="Not yet posted — excluded from totals until it settles">Pending</Badge>}
+                    {isETx && <Badge tone="emerald" title="Interac e-Transfer — not counted in spending or income">E-Transfer</Badge>}
+                    {isReimbursement && <Badge tone="emerald" title="Linked to a purchase — offsets that spend instead of counting as income">Reimburse</Badge>}
+                  </div>
+                  <div className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</div>
+                  {crossMonth.has(transaction.id) && (
+                    <div className="text-[10px] text-blue-600">
+                      Refunds a purchase from {crossMonth.get(transaction.id)!.purchaseMonth}
+                    </div>
+                  )}
+                  {isReimbursement && linkedPurchase && (
+                    <div className="text-[10px] text-emerald-700">
+                      Reimburses: {linkedPurchase.description}
+                    </div>
+                  )}
+                  {reimbursedTotal > 0 && (
+                    <div className="text-[10px] text-emerald-700">
+                      Reimbursed: -{formatCurrency(reimbursedTotal, userRegion.currency)}
+                    </div>
+                  )}
+                  {transaction.notes && transaction.notes.trim() && (
+                    <div className="text-[11px] text-gray-600 italic mt-1 flex items-start gap-1">
+                      <StickyNote size={11} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                      <span className="line-clamp-2">{transaction.notes}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm text-gray-500">{card?.name} •••• {card?.last_four} • {transaction.category}</div>
-                {crossMonth.has(transaction.id) && (
-                  <div className="text-[10px] text-blue-600">
-                    Refunds a purchase from {crossMonth.get(transaction.id)!.purchaseMonth}
-                  </div>
-                )}
-                {isReimbursement && linkedPurchase && (
-                  <div className="text-[10px] text-emerald-700">
-                    Reimburses: {linkedPurchase.description}
-                  </div>
-                )}
-                {reimbursedTotal > 0 && (
-                  <div className="text-[10px] text-emerald-700">
-                    Reimbursed: -{formatCurrency(reimbursedTotal, userRegion.currency)}
-                  </div>
-                )}
-                {transaction.notes && transaction.notes.trim() && (
-                  <div className="text-[11px] text-gray-600 italic mt-1 flex items-start gap-1">
-                    <StickyNote size={11} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                    <span className="line-clamp-2">{transaction.notes}</span>
-                  </div>
-                )}
               </div>
-            </div>
-            <div className="text-right">
-              <div className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {transaction.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(transaction.amount), userRegion.currency)}
+              <div className="text-right">
+                <div className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {transaction.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(transaction.amount), userRegion.currency)}
+                </div>
+                {transaction.transaction_currency && card?.currency && transaction.transaction_currency !== card.currency && (
+                  <div className="text-[10px] text-gray-400">in {transaction.transaction_currency}</div>
+                )}
+                <div className="text-sm text-gray-500">{transaction.date}</div>
               </div>
-              {transaction.transaction_currency && card?.currency && transaction.transaction_currency !== card.currency && (
-                <div className="text-[10px] text-gray-400">in {transaction.transaction_currency}</div>
-              )}
-              <div className="text-sm text-gray-500">{transaction.date}</div>
-            </div>
-          </button>
+            </button>
+          </div>
         );
       })}
     </div>

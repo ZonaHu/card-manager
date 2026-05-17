@@ -116,6 +116,27 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   }>(() => readPersisted(CHIPS_KEY, {}, PERSIST_VERSION));
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
+
+  const toggleTxSelect = (id: number) => {
+    setSelectedTxIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (ids: number[], target: boolean) => {
+    setSelectedTxIds(prev => {
+      const next = new Set(prev);
+      if (target) ids.forEach(id => next.add(id));
+      else ids.forEach(id => next.delete(id));
+      return next;
+    });
+  };
+
+  const clearTxSelection = () => setSelectedTxIds(new Set());
+
   const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1008,6 +1029,9 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 })
               }
               onClearFilters={() => { setSearchQuery(''); setChipFilters({}); }}
+              selectedIds={selectedTxIds}
+              onToggleSelect={toggleTxSelect}
+              onToggleSelectAll={toggleSelectAll}
             />
           </div>
         </div>
