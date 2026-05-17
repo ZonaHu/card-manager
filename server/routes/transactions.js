@@ -19,7 +19,7 @@ module.exports = function makeTransactionRoutes(deps) {
     const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
 
     const params = [req.user.userId];
-    let where = 'WHERE user_id = ?';
+    let where = 'WHERE user_id = ? AND deleted_at IS NULL';
     if (month) {
       where += ' AND date >= ? AND date < ?';
       const [y, m] = month.split('-').map(Number);
@@ -154,6 +154,42 @@ module.exports = function makeTransactionRoutes(deps) {
           if (err2) return sendServerError(res, err2);
           res.json(updated);
         });
+      }
+    );
+  });
+
+  // Soft-delete: stamp deleted_at instead of dropping the row, so the user
+  // can undo within the UI window. The reimbursement-pointer scrub trigger
+  // (migration 015) doesn't fire on soft delete — and that's deliberate;
+  // the linked reimbursement keeps working until the user actually purges.
+  router.delete('/:id', authenticateToken, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid transaction id' });
+    db.run(
+      `UPDATE transactions SET deleted_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+      [id, req.user.userId],
+      function (err) {
+        if (err) return sendServerError(res, err);
+        if (this.changes === 0) return res.status(404).json({ error: 'Transaction not found' });
+        res.json({ ok: true, id });
+      }
+    );
+  });
+
+  // Restore endpoint — flips deleted_at back to NULL. Only the owner can
+  // restore their own row.
+  router.post('/:id/restore', authenticateToken, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid transaction id' });
+    db.run(
+      'UPDATE transactions SET deleted_at = NULL WHERE id = ? AND user_id = ?',
+      [id, req.user.userId],
+      function (err) {
+        if (err) return sendServerError(res, err);
+        if (this.changes === 0) return res.status(404).json({ error: 'Transaction not found' });
+        db.get('SELECT * FROM transactions WHERE id = ?', [id],
+          (e, row) => e ? sendServerError(res, e) : res.json(row));
       }
     );
   });

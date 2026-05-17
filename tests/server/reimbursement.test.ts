@@ -106,3 +106,67 @@ describe('POST /api/transactions/:id/reimburses', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('soft-delete + restore', () => {
+  let app: any;
+  beforeEach(async () => { ({ app } = await buildTestApp()); });
+
+  async function seedRow(agent: any) {
+    await agent.post('/api/auth/register')
+      .send({ name: 'D', email: 'd@example.com', password: 'longenough123' });
+    const cardRes = await agent.post('/api/cards').send({
+      name: 'Test Checking', type: 'debit', lastFour: '0001', balance: 1000
+    });
+    const txRes = await agent.post('/api/transactions').send({
+      cardId: cardRes.body.id, amount: -10, description: 'COFFEE',
+      category: 'Food', date: '2026-04-01'
+    });
+    return { txId: txRes.body.id };
+  }
+
+  it('DELETE /:id hides the row from subsequent GET /', async () => {
+    const agent = request.agent(app);
+    const { txId } = await seedRow(agent);
+    const before = await agent.get('/api/transactions');
+    expect(before.body.find((t: any) => t.id === txId)).toBeTruthy();
+
+    const del = await agent.delete(`/api/transactions/${txId}`);
+    expect(del.status).toBe(200);
+
+    const after = await agent.get('/api/transactions');
+    expect(after.body.find((t: any) => t.id === txId)).toBeUndefined();
+  });
+
+  it('POST /:id/restore brings the row back', async () => {
+    const agent = request.agent(app);
+    const { txId } = await seedRow(agent);
+    await agent.delete(`/api/transactions/${txId}`);
+
+    const res = await agent.post(`/api/transactions/${txId}/restore`);
+    expect(res.status).toBe(200);
+    expect(res.body.deleted_at).toBeNull();
+
+    const after = await agent.get('/api/transactions');
+    expect(after.body.find((t: any) => t.id === txId)).toBeTruthy();
+  });
+
+  it('DELETE is idempotent — second delete on the same row returns 404 (already deleted)', async () => {
+    const agent = request.agent(app);
+    const { txId } = await seedRow(agent);
+    await agent.delete(`/api/transactions/${txId}`);
+    const res2 = await agent.delete(`/api/transactions/${txId}`);
+    expect(res2.status).toBe(404);
+  });
+
+  it('restoring another user\'s deleted row returns 404 — no cross-user reach', async () => {
+    const a = request.agent(app);
+    const { txId } = await seedRow(a);
+    await a.delete(`/api/transactions/${txId}`);
+
+    const b = request.agent(app);
+    await b.post('/api/auth/register')
+      .send({ name: 'B', email: 'b@example.com', password: 'longenough123' });
+    const res = await b.post(`/api/transactions/${txId}/restore`);
+    expect(res.status).toBe(404);
+  });
+});
