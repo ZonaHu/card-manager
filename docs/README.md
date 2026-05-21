@@ -5,7 +5,8 @@ Project documentation index.
 ## Top-level
 
 - [`../README.md`](../README.md) — user-facing runbook (setup + day-to-day operation)
-- [`../DEVELOPMENT.md`](../DEVELOPMENT.md) — maintainer + contributor guide
+- [`../AGENTS.md`](../AGENTS.md) — 5-minute getting-started for AI assistants + human contributors
+- [`../DEVELOPMENT.md`](../DEVELOPMENT.md) — maintainer + contributor guide (deep architecture)
 - [`../ROADMAP.md`](../ROADMAP.md) — planned but not-yet-done work
 - [`../SECURITY.md`](../SECURITY.md) — threat model + vulnerability disclosure
 - [`../LICENSE`](../LICENSE) — MIT

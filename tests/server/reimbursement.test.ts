@@ -64,10 +64,10 @@ describe('POST /api/transactions/:id/reimburses', () => {
 
     // First update — set a note.
     let res = await agent.put(`/api/transactions/${purchaseId}`).send({
-      amount: -100, description: 'DINNER', category: 'Food', notes: 'split with Yutang'
+      amount: -100, description: 'DINNER', category: 'Food', notes: 'split with a friend'
     });
     expect(res.status).toBe(200);
-    expect(res.body.notes).toBe('split with Yutang');
+    expect(res.body.notes).toBe('split with a friend');
 
     // Second update without notes field — backend should treat undefined as
     // null (matches the validation rule). Round-trip stays stable.

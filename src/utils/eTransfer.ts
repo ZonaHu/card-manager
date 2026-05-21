@@ -8,7 +8,7 @@ import type { Transaction } from '../types';
 //   "E-TRANSFER 011645645599 Yier Cao"
 //   "INTERAC E-TRANSFER SEND simon"
 //   "INTERAC E-TRANSFER RECEIVE DAN TAM THUY HOANG"
-//   "Yutang Yang - INTERAC e-Transfer®"
+//   "Jane Doe - INTERAC e-Transfer®"
 //   "[CW]INTERAC ETRNSFR SENT TD 20260991049TCCJZE"
 const ETRANSFER_RE = /\b(e-transfer|etransfer|interac e-transfer|interac etrnsfr|e-tfr)\b/i;
 

@@ -529,6 +529,7 @@ Next sync fails with `INVALID_ACCESS_TOKEN`. The backend deletes the `plaid_item
 
 ## Where to go next
 
+- **Contributing (AI or human) — start here:** [`AGENTS.md`](./AGENTS.md). Get to "tests pass + app boots" in 5 minutes + know what to touch / what not to.
 - **Maintainer / developer guide:** [`DEVELOPMENT.md`](./DEVELOPMENT.md)
 - **Forward-looking work:** [`ROADMAP.md`](./ROADMAP.md)
 - **Plaid setup deep-dive:** [`docs/setup/PLAID_SETUP.md`](./docs/setup/PLAID_SETUP.md)

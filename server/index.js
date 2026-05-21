@@ -19,10 +19,17 @@ const PORT = process.env.PORT || 3001;
 // known (in the repo), so accepting them would let anyone forge JWTs against
 // the deployment.
 const PLACEHOLDER_SECRETS = new Set([
+  // Older placeholder shapes (pre-rewrite)
   'your-super-secret-jwt-key-here-change-this-in-production',
   'your-session-secret-here-change-this-too',
   'your-encryption-key-here-change-this-too',
-  'change-me'
+  'change-me',
+  // Current .env.example placeholder shapes — keep this list in sync if
+  // .env.example is ever edited; otherwise the friendly error stops firing
+  // and the user sees a less-helpful crypto/jwt-library error instead.
+  'your-super-secret-jwt-key-change-this-in-production',
+  'your-session-secret-change-this-in-production',
+  'generate-a-64-char-hex-string-with-openssl-rand-hex-32'
 ]);
 function requireSecret(name) {
   const v = process.env[name];

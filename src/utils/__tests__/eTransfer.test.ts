@@ -7,6 +7,10 @@ import {
 } from '../eTransfer';
 import type { Transaction } from '../../types';
 
+// Names are synthetic test fixtures (Alice/Bob/Carol/Jane Doe). The regex
+// targets bank-feed description shapes — the words themselves don't matter,
+// only the structure (verb prefix, dash separator, ref-number prefix, etc.).
+
 let id = 0;
 function tx(date: string, amount: number, description: string): Transaction {
   return { id: ++id, card_id: 1, cardId: 1, amount, description, category: 'Other', date, source: 'plaid' };
@@ -14,11 +18,11 @@ function tx(date: string, amount: number, description: string): Transaction {
 
 describe('isETransfer', () => {
   it('matches every observed bank format', () => {
-    expect(isETransfer(tx('2026-05-01', -50, 'INTERAC E-TRANSFER SEND simon'))).toBe(true);
-    expect(isETransfer(tx('2026-05-01', 50, 'INTERAC E-TRANSFER RECEIVE Foo'))).toBe(true);
-    expect(isETransfer(tx('2026-05-01', -50, 'Yutang Yang - INTERAC e-Transfer®'))).toBe(true);
-    expect(isETransfer(tx('2026-05-01', -50, 'E-TRANSFER 011644895753 YANG YANG'))).toBe(true);
-    expect(isETransfer(tx('2026-05-01', -50, '[CW]INTERAC ETRNSFR SENT TD 20260991049TCCJZE'))).toBe(true);
+    expect(isETransfer(tx('2026-05-01', -50, 'INTERAC E-TRANSFER SEND alice'))).toBe(true);
+    expect(isETransfer(tx('2026-05-01', 50, 'INTERAC E-TRANSFER RECEIVE Bob'))).toBe(true);
+    expect(isETransfer(tx('2026-05-01', -50, 'Carol Smith - INTERAC e-Transfer®'))).toBe(true);
+    expect(isETransfer(tx('2026-05-01', -50, 'E-TRANSFER 011000000000 ALICE COOPER'))).toBe(true);
+    expect(isETransfer(tx('2026-05-01', -50, '[CW]INTERAC ETRNSFR SENT TD 20260000000ABCDEF'))).toBe(true);
   });
 
   it('ignores non e-transfer descriptions', () => {
@@ -32,11 +36,11 @@ describe('isETransfer', () => {
 
 describe('extractCounterparty', () => {
   it('pulls the name from each format', () => {
-    expect(extractCounterparty('INTERAC E-TRANSFER SEND simon')).toBe('simon');
-    expect(extractCounterparty('INTERAC E-TRANSFER RECEIVE DAN TAM THUY HOANG')).toBe('DAN TAM THUY HOANG');
-    expect(extractCounterparty('Yutang Yang - INTERAC e-Transfer®')).toBe('Yutang Yang');
-    expect(extractCounterparty('E-TRANSFER 011644895753 YANG YANG')).toBe('YANG YANG');
-    expect(extractCounterparty('[CW]INTERAC ETRNSFR SENT TD 20260991049TCCJZE')).toBe('Interac transfer');
+    expect(extractCounterparty('INTERAC E-TRANSFER SEND alice')).toBe('alice');
+    expect(extractCounterparty('INTERAC E-TRANSFER RECEIVE FIRST MIDDLE LAST')).toBe('FIRST MIDDLE LAST');
+    expect(extractCounterparty('Carol Smith - INTERAC e-Transfer®')).toBe('Carol Smith');
+    expect(extractCounterparty('E-TRANSFER 011000000000 ALICE COOPER')).toBe('ALICE COOPER');
+    expect(extractCounterparty('[CW]INTERAC ETRNSFR SENT TD 20260000000ABCDEF')).toBe('Interac transfer');
   });
 
   it('returns unknown when description is missing', () => {
@@ -54,9 +58,9 @@ describe('extractCounterparty', () => {
 describe('summarizeETransfers', () => {
   it('totals in and out separately and computes net', () => {
     const r = summarizeETransfers([
-      tx('2026-05-01', 200, 'INTERAC E-TRANSFER RECEIVE Foo'),
-      tx('2026-05-02', -50, 'INTERAC E-TRANSFER SEND Bar'),
-      tx('2026-05-03', -30, 'INTERAC E-TRANSFER SEND Baz'),
+      tx('2026-05-01', 200, 'INTERAC E-TRANSFER RECEIVE Alice'),
+      tx('2026-05-02', -50, 'INTERAC E-TRANSFER SEND Bob'),
+      tx('2026-05-03', -30, 'INTERAC E-TRANSFER SEND Carol'),
       tx('2026-05-04', -10, 'COFFEE') // not an e-transfer — excluded
     ]);
     expect(r.totalIn).toBe(200);
@@ -70,16 +74,16 @@ describe('summarizeETransfers', () => {
 describe('groupETransfersByCounterparty', () => {
   it('groups same-name interactions and sorts by volume', () => {
     const r = groupETransfersByCounterparty([
-      tx('2026-05-01', 200, 'INTERAC E-TRANSFER RECEIVE simon'),
-      tx('2026-05-02', -50, 'INTERAC E-TRANSFER SEND simon'),
-      tx('2026-05-03', -10, 'INTERAC E-TRANSFER SEND yangyang')
+      tx('2026-05-01', 200, 'INTERAC E-TRANSFER RECEIVE alice'),
+      tx('2026-05-02', -50, 'INTERAC E-TRANSFER SEND alice'),
+      tx('2026-05-03', -10, 'INTERAC E-TRANSFER SEND bob')
     ]);
     expect(r).toHaveLength(2);
-    expect(r[0].counterparty).toBe('simon');
+    expect(r[0].counterparty).toBe('alice');
     expect(r[0].totalIn).toBe(200);
     expect(r[0].totalOut).toBe(50);
     expect(r[0].net).toBe(150);
     expect(r[0].count).toBe(2);
-    expect(r[1].counterparty).toBe('yangyang');
+    expect(r[1].counterparty).toBe('bob');
   });
 });
