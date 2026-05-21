@@ -3,7 +3,7 @@ import { Plus, X, ExternalLink, Sparkles, AlertCircle, Check, Search, Download }
 
 // Types and constants
 import type { Card, CardCategory, Transaction, MonthlyData, User, UserRegion, TransactionFilter, TransactionSort } from '../types';
-import { CATEGORIES, getCategoryColor } from '../constants/categories';
+import { getCategoryColor } from '../constants/categories';
 
 // Hooks and services
 import { useApi } from '../hooks/useApi';
@@ -35,6 +35,7 @@ import { DashboardMenu } from './dashboard/DashboardMenu';
 import { DashboardHeader } from './dashboard/DashboardHeader';
 import { ReauthBanner } from './dashboard/ReauthBanner';
 import { CardGrid } from './dashboard/CardGrid';
+import { DashboardModals } from './dashboard/DashboardModals';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
@@ -44,15 +45,8 @@ import { WidgetErrorFallback } from './dashboard/WidgetErrorFallback';
 const NetWorthChart = React.lazy(() =>
   import('./dashboard/NetWorthChart').then(m => ({ default: m.NetWorthChart }))
 );
-import { TransactionEditModal } from './forms/TransactionEditModal';
-import { CardForm } from './forms/CardForm';
-import { TransactionForm } from './forms/TransactionForm';
-import { AddCardOptions } from './forms/AddCardOptions';
-import { CardDetailModal } from './cards/CardDetailModal';
-import About from './About';
-import PlaidLink from './PlaidLink';
-import PlaidUpdateLink from './PlaidUpdateLink';
-import RegionSelector from './RegionSelector';
+// All modal mounts moved into DashboardModals — its imports cover the
+// forms, About, PlaidLink, PlaidUpdateLink, RegionSelector, CardDetailModal.
 
 // Utilities
 import { formatCurrency } from '../utils/currency';
@@ -723,96 +717,49 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           </div>
         </div>
 
-        {/* Modals */}
-        {showPlaidLink && (
-          <PlaidLink
-            token={token}
-            onSuccess={handlePlaidSuccess}
-            onClose={() => setShowPlaidLink(false)}
-            isNewUser={isNewUser}
-          />
-        )}
-
-        {reauthTarget && (
-          <PlaidUpdateLink
-            itemId={reauthTarget.itemId}
-            institutionName={reauthTarget.institutionName}
-            onSuccess={() => {
-              setReauthTarget(null);
-              setSyncBanner({ show: true, message: `${reauthTarget.institutionName} reconnected. Syncing…`, type: 'info' });
-              loadData();
-            }}
-            onExit={() => setReauthTarget(null)}
-          />
-        )}
-
-        {showRegionSelector && (
-          <RegionSelector
-            token={token}
-            onRegionSelected={handleRegionSelected}
-            onClose={() => setShowRegionSelector(false)}
-            currentRegion={userRegion.country}
-          />
-        )}
-
-        {showAddCard && (
-          <CardForm onSubmit={addCard} onCancel={() => setShowAddCard(false)} cardCategories={cardCategories} />
-        )}
-
-        {showAddTransaction && (
-          <TransactionForm
-            cards={cards}
-            categories={CATEGORIES}
-            onSubmit={addTransaction}
-            onCancel={() => setShowAddTransaction(false)}
-          />
-        )}
-
-        {showAddCardOptions && (
-          <AddCardOptions
-            onConnectBank={() => {
-              setShowAddCardOptions(false);
-              setShowPlaidLink(true);
-            }}
-            onAddManually={() => {
-              setShowAddCardOptions(false);
-              setShowAddCard(true);
-            }}
-            onClose={() => setShowAddCardOptions(false)}
-          />
-        )}
-
-        {showTransactionEditModal && editingTransaction && (
-          <TransactionEditModal
-            transaction={editingTransaction}
-            cards={cards}
-            allTransactions={transactions}
-            onSubmit={updateTransaction}
-            onCancel={() => {
-              setShowTransactionEditModal(false);
-              setEditingTransaction(null);
-            }}
-            onReimbursementChange={loadData}
-            onDelete={handleDeleteTransaction}
-          />
-        )}
-
-        {showCardDetail && selectedCard && (
-          <CardDetailModal
-            card={selectedCard}
-            transactions={transactions}
-            userRegion={userRegion}
-            onClose={() => {
-              setShowCardDetail(false);
-              setSelectedCard(null);
-            }}
-            onTransactionClick={handleTransactionClick}
-          />
-        )}
-
-        {showAbout && (
-          <About onClose={() => setShowAbout(false)} />
-        )}
+        <DashboardModals
+          token={token}
+          cards={cards}
+          transactions={transactions}
+          userRegion={userRegion}
+          cardCategories={cardCategories}
+          isNewUser={isNewUser}
+          showPlaidLink={showPlaidLink}
+          onPlaidLinkSuccess={handlePlaidSuccess}
+          onClosePlaidLink={() => setShowPlaidLink(false)}
+          reauthTarget={reauthTarget}
+          onReauthSuccess={() => {
+            setReauthTarget(null);
+            setSyncBanner({ show: true, message: `${reauthTarget?.institutionName} reconnected. Syncing…`, type: 'info' });
+            loadData();
+          }}
+          onReauthExit={() => setReauthTarget(null)}
+          showRegionSelector={showRegionSelector}
+          onRegionSelected={handleRegionSelected}
+          onCloseRegionSelector={() => setShowRegionSelector(false)}
+          showAddCard={showAddCard}
+          onAddCard={addCard}
+          onCloseAddCard={() => setShowAddCard(false)}
+          showAddTransaction={showAddTransaction}
+          onAddTransaction={addTransaction}
+          onCloseAddTransaction={() => setShowAddTransaction(false)}
+          showAddCardOptions={showAddCardOptions}
+          onPickPlaid={() => { setShowAddCardOptions(false); setShowPlaidLink(true); }}
+          onPickManual={() => { setShowAddCardOptions(false); setShowAddCard(true); }}
+          onCloseAddCardOptions={() => setShowAddCardOptions(false)}
+          showTransactionEditModal={showTransactionEditModal}
+          editingTransaction={editingTransaction}
+          onUpdateTransaction={updateTransaction}
+          onCancelEditTransaction={() => { setShowTransactionEditModal(false); setEditingTransaction(null); }}
+          onReimbursementChange={loadData}
+          onDeleteTransaction={handleDeleteTransaction}
+          showCardDetail={showCardDetail}
+          selectedCard={selectedCard}
+          onCloseCardDetail={() => { setShowCardDetail(false); setSelectedCard(null); }}
+          onTransactionClick={handleTransactionClick}
+          showAbout={showAbout}
+          onCloseAbout={() => setShowAbout(false)}
+        />
 
         <TransactionSelectionBar
           selectedCount={selectedTxIds.size}

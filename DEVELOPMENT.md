@@ -94,6 +94,11 @@ card-manager/
 │   │   ├── cards/
 │   │   │   └── CardDetailModal.tsx
 │   │   ├── dashboard/                  every widget that lives below the header
+│   │   │   ├── DashboardHeader.tsx     logo + welcome + sync hint + add-card + menu slot
+│   │   │   ├── DashboardMenu.tsx       burger menu — own state + click-outside + Esc
+│   │   │   ├── DashboardModals.tsx     centralized modal mounting (9 modals)
+│   │   │   ├── ReauthBanner.tsx        Plaid needs_reauth yellow banner
+│   │   │   ├── CardGrid.tsx            "Your Cards" filter + tiles
 │   │   │   ├── FinancialOverview.tsx
 │   │   │   ├── CategoryBreakdown.tsx
 │   │   │   ├── NetWorthChart.tsx
@@ -112,7 +117,10 @@ card-manager/
 │   │   │   ├── DashboardSkeleton.tsx
 │   │   │   └── WidgetErrorFallback.tsx
 │   │   └── forms/
-│   │       └── TransactionEditModal.tsx
+│   │       ├── TransactionEditModal.tsx
+│   │       ├── CardForm.tsx
+│   │       ├── TransactionForm.tsx
+│   │       └── AddCardOptions.tsx
 │   ├── hooks/
 │   │   ├── useApi.ts                   wraps fetch + JSON + error → throws Error
 │   │   ├── useEscapeKey.ts             window keydown for modal close
