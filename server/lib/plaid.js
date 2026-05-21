@@ -35,10 +35,16 @@ const DEPOSIT_RE = /\b(deposit paypal|internet deposit|^deposit\b|electronic fun
 // the existing budget/category breakdown handles them correctly; the
 // front-end FixedCostsPanel does the per-vendor grouping on top.
 const BILLS_RE = /\bchexy\b|\bmetergy\b|\benbridge\b|\btoronto hydro\b|\bhydro one\b|\bbell canada\b|\brogers bk\b|\bfido\b|\bkoodo\b|\btelus mobility\b|\brogers wireless\b/i;
+// Credit-card payment rows that Plaid sometimes labels INCOME (the receiving
+// side of a payment landing on the CC). These are inter-account movement,
+// not earnings — route to Transfer so spend calc + dashboard tile both treat
+// them correctly.
+const CC_PAYMENT_RE = /\bpayment received\b|\bcc pmt\b|\bcredit card payment\b|\bautopay\b/i;
 
 function detectByDescription(desc) {
   if (!desc) return null;
   if (CASH_OUT_RE.test(desc)) return 'Cash';
+  if (CC_PAYMENT_RE.test(desc)) return 'Transfer';
   if (BILLS_RE.test(desc)) return 'Bills';
   // Direct deposit + payroll usually mean income — let the existing rule
   // handle "Direct deposit" suffix below; only treat plain "DEPOSIT *" as a

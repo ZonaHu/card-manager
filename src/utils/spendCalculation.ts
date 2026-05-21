@@ -173,8 +173,14 @@ export function findWashedTransactionIds(txs: Transaction[]): Set<number> {
 }
 
 function countAsIncome(t: Transaction): boolean {
-  if (t.category === 'Income') return true;
   const desc = (t.description ?? '').toLowerCase();
+  // Hard-no overrides: descriptions that obviously represent inter-account
+  // movement should never count as income, even if Plaid (or a user rule)
+  // mis-tagged them as category='Income'. Plaid's INCOME signal is
+  // unreliable for credit-card payment rows where the receiving side is on
+  // a CC ("PAYMENT RECEIVED - THANK YOU"), so we backstop here.
+  if (/\bpayment received\b|\bcc pmt\b|\bcredit card payment\b|\bautopay\b/.test(desc)) return false;
+  if (t.category === 'Income') return true;
   const isTransferOrPayment =
     t.category === 'Other' ||
     desc.includes('transfer') ||

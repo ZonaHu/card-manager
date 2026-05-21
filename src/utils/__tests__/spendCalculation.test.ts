@@ -326,6 +326,16 @@ describe('calculateMonthlyData', () => {
     expect(r.byCategory.Transfer).toBeUndefined();         // Transfer row was skipped
   });
 
+  it('"PAYMENT RECEIVED - THANK YOU" does not count as income even if tagged category=Income', () => {
+    // Real-world: Plaid mis-labeled a CC payment row as INCOME in
+    // personal_finance_category. The category column wound up "Income" in
+    // our DB. countAsIncome must still refuse based on the description.
+    const r = calc([
+      tx({ cardId: 3, amount: 1614.01, date: '2026-04-15', description: 'PAYMENT RECEIVED - THANK YOU', category: 'Income' })
+    ]);
+    expect(r.income).toBe(0);
+  });
+
   it('refund-via-Interac reduces spending instead of inflating eTransfersIn', () => {
     // Lyft-style: a refund issued through an e-Transfer should NET the
     // original purchase, not show up as "you received money" income.
