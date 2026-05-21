@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { CreditCard, Plus, Menu, X, ExternalLink, Sparkles, LogOut, Zap, TrendingUp, Edit3, Trash2, AlertCircle, Globe, HelpCircle, Check, Search, Download } from 'lucide-react';
+import { CreditCard, Plus, X, ExternalLink, Sparkles, Trash2, AlertCircle, Check, Search, Download } from 'lucide-react';
 
 // Types and constants
 import type { Card, CardCategory, Transaction, MonthlyData, User, UserRegion, TransactionFilter, TransactionSort } from '../types';
@@ -31,6 +31,7 @@ import { RecurringList } from './dashboard/RecurringList';
 import { ETransferPanel } from './dashboard/ETransferPanel';
 import { FixedCostsPanel } from './dashboard/FixedCostsPanel';
 import { DashboardSkeleton } from './dashboard/DashboardSkeleton';
+import { DashboardMenu } from './dashboard/DashboardMenu';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
@@ -41,6 +42,9 @@ const NetWorthChart = React.lazy(() =>
   import('./dashboard/NetWorthChart').then(m => ({ default: m.NetWorthChart }))
 );
 import { TransactionEditModal } from './forms/TransactionEditModal';
+import { CardForm } from './forms/CardForm';
+import { TransactionForm } from './forms/TransactionForm';
+import { AddCardOptions } from './forms/AddCardOptions';
 import { CardDetailModal } from './cards/CardDetailModal';
 import About from './About';
 import PlaidLink from './PlaidLink';
@@ -100,7 +104,6 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('all');
   const [transactionSort, setTransactionSort] = useState<TransactionSort>('newest');
   const [userRegion, setUserRegion] = useState<UserRegion>({ country: 'US', currency: 'USD' });
-  const [showMenu, setShowMenu] = useState(false);
   const [showAddCardOptions, setShowAddCardOptions] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showTransactionEditModal, setShowTransactionEditModal] = useState(false);
@@ -177,32 +180,10 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
     }
   };
 
-  const menuRef = useRef<HTMLDivElement>(null);
   const transactionsRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useGlobalShortcut('k', () => searchInputRef.current?.focus());
-
-  // Burger-menu dismiss handling: click outside the dropdown OR press Escape
-  // should close it. Without this the menu eats keyboard focus + traps the
-  // user inside until they click the burger button again.
-  useEffect(() => {
-    if (!showMenu) return;
-    const onClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowMenu(false);
-    };
-    window.addEventListener('mousedown', onClick);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onClick);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [showMenu]);
 
   // Persist search + chip filters to localStorage
   useEffect(() => { writePersisted(SEARCH_KEY, searchQuery, PERSIST_VERSION); }, [searchQuery]);
@@ -512,180 +493,30 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               {isNewUser ? 'Get Started' : 'Add Card'}
             </button>
             
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-colors"
-                aria-label={showMenu ? 'Close menu' : 'Open menu'}
-                aria-haspopup="menu"
-                aria-expanded={showMenu}
-              >
-                {showMenu ? <X size={20} /> : <Menu size={20} />}
-              </button>
-
-              {showMenu && (
-                <div role="menu" className="absolute right-0 top-12 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-64 z-50">
-                  {/* Sync Options */}
-                  {cards.some(card => card.connected) && (
-                    <>
-                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                        Sync Options
-                      </div>
-                      <button
-                        onClick={() => {
-                          syncTransactions('recent');
-                          setShowMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                        disabled={loading}
-                      >
-                        <Zap size={16} className="text-purple-600" />
-                        <div>
-                          <div className="font-medium">{loading ? 'Syncing...' : 'Quick Sync'}</div>
-                          <div className="text-sm text-gray-500">Recent transactions (30 days)</div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => {
-                          syncTransactions('all', 3);
-                          setShowMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                        disabled={loading}
-                      >
-                        <TrendingUp size={16} className="text-indigo-600" />
-                        <div>
-                          <div className="font-medium">{loading ? 'Syncing...' : 'Full Sync'}</div>
-                          <div className="text-sm text-gray-500">All transaction history (3 months)</div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => {
-                          recategorizeTransactions();
-                          setShowMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                        disabled={loading}
-                      >
-                        <Edit3 size={16} className="text-green-600" />
-                        <div>
-                          <div className="font-medium">{loading ? 'Fixing...' : 'Fix Categories'}</div>
-                          <div className="text-sm text-gray-500">Update transaction categories from Plaid</div>
-                        </div>
-                      </button>
-                      
-                      {/* Add Transaction */}
-                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 mt-2">
-                        Transactions
-                      </div>
-                      <button
-                        onClick={() => {
-                          setShowAddTransaction(true);
-                          setShowMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                      >
-                        <Plus size={16} className="text-green-600" />
-                        <div>
-                          <div className="font-medium">Add Transaction</div>
-                          <div className="text-sm text-gray-500">Record a manual transaction</div>
-                        </div>
-                      </button>
-                    </>
-                  )}
-                  
-                  {/* Connect Bank Account */}
-                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 mt-2">
-                    Account
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowPlaidLink(true);
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <ExternalLink size={16} className="text-blue-600" />
-                    <div>
-                      <div className="font-medium">Connect Bank Account</div>
-                      <div className="text-sm text-gray-500">Link with Plaid for automatic syncing</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowRegionSelector(true);
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <Globe size={16} className="text-purple-600" />
-                    <div>
-                      <div className="font-medium">Change Region</div>
-                      <div className="text-sm text-gray-500">Update country and currency ({userRegion.country} - {userRegion.currency})</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowAbout(true);
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <HelpCircle size={16} className="text-gray-600" />
-                    <div>
-                      <div className="font-medium">About & Security</div>
-                      <div className="text-sm text-gray-500">Privacy, security, and how it works</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={async () => {
-                      setShowMenu(false);
-                      setSyncBanner({ show: true, message: 'Creating backup…', type: 'info' });
-                      try {
-                        await apiCall('/api/backup/run', { method: 'POST' });
-                        setSyncBanner({ show: true, message: 'Backup created.', type: 'success' });
-                        setTimeout(() => setSyncBanner(null), 4000);
-                      } catch (e: any) {
-                        setSyncBanner({ show: true, message: `Backup failed: ${e.message}`, type: 'error' });
-                      }
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <Download size={16} className="text-blue-600" />
-                    <div>
-                      <div className="font-medium">Run Backup Now</div>
-                      <div className="text-sm text-gray-500">Snapshot the local database</div>
-                    </div>
-                  </button>
-
-                  <SyncStatusList items={plaidItems} />
-
-                  <div className="px-4 py-2 text-[10px] text-gray-400 border-t border-gray-100 flex items-center justify-between">
-                    <span>v{__APP_VERSION__}</span>
-                    <span className="font-mono">{__COMMIT_SHA__}</span>
-                  </div>
-
-                  <div className="px-4 py-2 border-t border-gray-100"></div>
-
-                  <button
-                    onClick={() => {
-                      onLogout();
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <LogOut size={16} className="text-red-600" />
-                    <div>
-                      <div className="font-medium">Logout</div>
-                      <div className="text-sm text-gray-500">Sign out of your account</div>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
+            <DashboardMenu
+              cards={cards}
+              plaidItems={plaidItems}
+              userRegion={userRegion}
+              loading={loading}
+              onQuickSync={() => syncTransactions('recent')}
+              onFullSync={() => syncTransactions('all', 3)}
+              onFixCategories={recategorizeTransactions}
+              onAddTransaction={() => setShowAddTransaction(true)}
+              onConnectBank={() => setShowPlaidLink(true)}
+              onChangeRegion={() => setShowRegionSelector(true)}
+              onShowAbout={() => setShowAbout(true)}
+              onRunBackup={async () => {
+                setSyncBanner({ show: true, message: 'Creating backup…', type: 'info' });
+                try {
+                  await apiCall('/api/backup/run', { method: 'POST' });
+                  setSyncBanner({ show: true, message: 'Backup created.', type: 'success' });
+                  setTimeout(() => setSyncBanner(null), 4000);
+                } catch (e: any) {
+                  setSyncBanner({ show: true, message: `Backup failed: ${e.message}`, type: 'error' });
+                }
+              }}
+              onLogout={onLogout}
+            />
           </div>
         </div>
 
@@ -1185,232 +1016,5 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   );
 };
 
-// Form Components (temporary - should be moved to separate files)
-const CardForm: React.FC<{ 
-  onSubmit: (data: any) => void;
-  onCancel: () => void;
-  cardCategories: Record<string, CardCategory>;
-}> = ({ onSubmit, onCancel, cardCategories }) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState('credit');
-  const [lastFour, setLastFour] = useState('');
-  const [balance, setBalance] = useState('0');
-  const [category, setCategory] = useState('credit');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      name,
-      type,
-      lastFour,
-      balance: parseFloat(balance),
-      category
-    });
-  };
-
-  return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">Add Card</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Card Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-            required
-          />
-          <input
-            type="text"
-            placeholder="Last Four Digits"
-            value={lastFour}
-            onChange={(e) => setLastFour(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-            maxLength={4}
-            required
-          />
-          <input
-            type="number"
-            placeholder="Balance"
-            value={balance}
-            onChange={(e) => setBalance(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-            step="0.01"
-            required
-          />
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-          >
-            {Object.entries(cardCategories).map(([key, cat]) => (
-              <option key={key} value={key}>{cat.label}</option>
-            ))}
-          </select>
-          <div className="flex gap-3">
-            <button type="button" onClick={onCancel} className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg">
-              Cancel
-            </button>
-            <button type="submit" className="flex-1 bg-indigo-600 text-white py-2 rounded-lg">
-              Add Card
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const TransactionForm: React.FC<{
-  cards: Card[];
-  categories: readonly string[];
-  onSubmit: (data: any) => void;
-  onCancel: () => void;
-}> = ({ cards, categories, onSubmit, onCancel }) => {
-  const [cardId, setCardId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState(categories[0]);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [isExpense, setIsExpense] = useState(true);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      cardId: parseInt(cardId),
-      amount: isExpense ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount)),
-      description,
-      category,
-      date
-    });
-  };
-
-  return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">Add Transaction</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <select
-            value={cardId}
-            onChange={(e) => setCardId(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-            required
-          >
-            <option value="">Select Card</option>
-            {cards.map(card => (
-              <option key={card.id} value={card.id}>{card.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-            required
-          />
-          <div className="flex gap-2">
-            <select
-              value={isExpense ? 'expense' : 'income'}
-              onChange={(e) => setIsExpense(e.target.value === 'expense')}
-              className="px-3 py-2 border border-gray-300 rounded-lg"
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
-            <input
-              type="number"
-              placeholder="Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="flex-1 p-3 border border-gray-300 rounded-lg"
-              step="0.01"
-              required
-            />
-          </div>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-          >
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-            required
-          />
-          <div className="flex gap-3">
-            <button type="button" onClick={onCancel} className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg">
-              Cancel
-            </button>
-            <button type="submit" className="flex-1 bg-indigo-600 text-white py-2 rounded-lg">
-              Add Transaction
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const AddCardOptions: React.FC<{
-  onConnectBank: () => void;
-  onAddManually: () => void;
-  onClose: () => void;
-}> = ({ onConnectBank, onAddManually, onClose }) => {
-  return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        <h3 className="text-xl font-semibold mb-2 text-gray-900">Add Card or Account</h3>
-        <p className="text-gray-600 mb-6">Choose how you'd like to add your financial account</p>
-        
-        <div className="space-y-4">
-          <button
-            onClick={onConnectBank}
-            className="w-full p-4 border-2 border-blue-200 bg-blue-50 rounded-lg hover:border-blue-300 hover:bg-blue-100 transition-colors group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center group-hover:bg-blue-700 transition-colors">
-                <ExternalLink className="text-white" size={20} />
-              </div>
-              <div className="text-left">
-                <h4 className="font-semibold text-gray-900">Connect Bank Account</h4>
-                <p className="text-sm text-gray-600">Securely link with Plaid for automatic syncing</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={onAddManually}
-            className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                <Plus className="text-gray-600" size={20} />
-              </div>
-              <div className="text-left">
-                <h4 className="font-semibold text-gray-900">Add Card Manually</h4>
-                <p className="text-sm text-gray-600">Enter card details manually for basic tracking</p>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        <button
-          onClick={onClose}
-          className="w-full mt-6 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-};
 
 export default CardManagerRefactored;
