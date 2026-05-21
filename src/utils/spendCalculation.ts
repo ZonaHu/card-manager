@@ -236,16 +236,28 @@ export function calculateMonthlyData({
   // their Reimburse badge in the transaction list (handled by the UI), they
   // just don't move the headline number for this month.
   const idsInFiltered = new Set(filtered.map(t => t.id));
+  const txById = new Map(filtered.map(t => [t.id, t]));
   const reimbursementByTarget = new Map<number, number>();
-  let reimbursementsApplied = 0;
   for (const t of filtered) {
     if (t.amount > 0 && typeof t.reimburses_id === 'number' && idsInFiltered.has(t.reimburses_id)) {
       reimbursementByTarget.set(
         t.reimburses_id,
         (reimbursementByTarget.get(t.reimburses_id) || 0) + t.amount
       );
-      reimbursementsApplied += t.amount;
     }
+  }
+  // Cap each target's effective reimbursement at the absolute purchase amount.
+  // Without this, a $200 reimbursement on a $100 purchase shows "Net of $200
+  // reimbursements" on the Spending tile even though the headline only dropped
+  // by $100 (clamp in the per-row branch). reimbursementsApplied is sum of
+  // capped values so the hint reads true.
+  let reimbursementsApplied = 0;
+  for (const [targetId, reimbAmount] of reimbursementByTarget) {
+    const target = txById.get(targetId);
+    if (!target) continue;
+    const cap = Math.abs(target.amount);
+    const effective = Math.min(reimbAmount, cap);
+    reimbursementsApplied += effective;
   }
 
   let creditCardSpending = 0;
@@ -260,6 +272,12 @@ export function calculateMonthlyData({
   // actually came from (excludes pending, transfers, washes, etc.).
   let spendingTxnCount = 0;
   let incomeTxnCount = 0;
+  // Id sets surfaced for drill-down: clicking the Spending or Income tile
+  // filters the transaction list to EXACTLY these ids, so the user sees
+  // only the rows that contributed to the headline number — no Transfer /
+  // Deposit / wash / pending noise.
+  const spendingContributorIds = new Set<number>();
+  const incomeContributorIds = new Set<number>();
 
   // Replaces the old "raw" byCategory that summed every negative txn — that
   // version included pending / washed / transfers / e-transfers / etc. and
@@ -323,6 +341,7 @@ export function calculateMonthlyData({
         creditCardSpending += net;
         addToByCategory(t.category, net);
         spendingTxnCount++;
+        spendingContributorIds.add(t.id);
         continue;
       }
       const amount = Math.abs(t.amount);
@@ -385,6 +404,7 @@ export function calculateMonthlyData({
       depositAccountSpending += net;
       addToByCategory(t.category, net);
       spendingTxnCount++;
+      spendingContributorIds.add(t.id);
     } else if (t.amount > 0) {
       // Credit-card positives split into two kinds:
       //   "PAYMENT RECEIVED" / generic positive  → debt reduction, ignore
@@ -413,6 +433,7 @@ export function calculateMonthlyData({
       if (countAsIncome(t)) {
         income += t.amount;
         incomeTxnCount++;
+        incomeContributorIds.add(t.id);
       }
     }
   }
@@ -437,6 +458,8 @@ export function calculateMonthlyData({
     eTransfersOut,
     reimbursementsApplied,
     spendingTxnCount,
-    incomeTxnCount
+    incomeTxnCount,
+    spendingContributorIds,
+    incomeContributorIds
   };
 }

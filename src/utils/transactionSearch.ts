@@ -7,6 +7,11 @@ export interface ChipFilters {
   pendingOnly?: boolean;
   minAmount?: number;                // absolute
   maxAmount?: number;                // absolute
+  // Optional explicit allowlist of transaction ids. When set, ONLY rows with
+  // these ids pass. Used by the Spending/Income tile drill-down so the user
+  // sees exactly the rows that contributed to the headline number — no need
+  // to express it as a category/sign chip.
+  idAllowlist?: Set<number>;
 }
 
 export function matchesSearch(t: Transaction, query: string): boolean {
@@ -19,6 +24,7 @@ export function matchesSearch(t: Transaction, query: string): boolean {
 
 export function applyFilters(transactions: Transaction[], f: ChipFilters): Transaction[] {
   return transactions.filter(t => {
+    if (f.idAllowlist && !f.idAllowlist.has(t.id)) return false;
     if (!matchesSearch(t, f.query)) return false;
     if (f.category && f.category !== 'all' && t.category !== f.category) return false;
     if (f.cardId != null && (t.cardId ?? (t as any).card_id) !== f.cardId) return false;

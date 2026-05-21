@@ -47,6 +47,18 @@ jobs:
       - name: Production build
         run: npm run build
 
+      # Dependency CVE check. Fails the job on HIGH/CRITICAL only — moderate
+      # is too noisy for a small project. `--production` skips devDeps so
+      # build-time tooling churn doesn't block PRs.
+      - name: npm audit (frontend, production deps)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+      - name: npm audit (backend, production deps)
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: server
+        continue-on-error: true
+
       # Sanity check: confirm the bundle didn't balloon. Current sizes:
       # main ~300 KB, NetWorthChart chunk ~392 KB. Generous ceilings so
       # legit growth doesn't fail CI, but a 2x regression will.

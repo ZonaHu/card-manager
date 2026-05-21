@@ -347,6 +347,27 @@ describe('calculateMonthlyData', () => {
     expect(r.eTransfersIn).toBe(0);          // NOT inflated by the refund
   });
 
+  it('exposes contributor id sets matching the headline totals', () => {
+    const food = tx({ cardId: 1, amount: -50, date: '2026-04-05', description: 'COFFEE', category: 'Food' });
+    const transfer = tx({ cardId: 1, amount: -100, date: '2026-04-06', description: 'Transfer to savings', category: 'Transfer' });
+    const payroll = tx({ cardId: 1, amount: 1000, date: '2026-04-15', description: 'PAYROLL', category: 'Income' });
+    const ccPay = tx({ cardId: 1, amount: 500, date: '2026-04-20', description: 'PAYMENT RECEIVED - THANK YOU', category: 'Income' });
+    const r = calc([food, transfer, payroll, ccPay]);
+    expect(Array.from(r.spendingContributorIds || [])).toEqual([food.id]);          // transfer excluded
+    expect(Array.from(r.incomeContributorIds || [])).toEqual([payroll.id]);          // CC payment excluded by countAsIncome guard
+  });
+
+  it('reimbursementsApplied caps at the target purchase amount (no over-claim)', () => {
+    // $100 dinner reimbursed by $200 — headline drops by $100, hint should
+    // read "$100" not "$200".
+    const dinner = tx({ cardId: 3, amount: -100, date: '2026-04-05', description: 'DINNER', category: 'Food' });
+    const reimbursement = tx({ cardId: 1, amount: 200, date: '2026-04-08', description: 'PAYBACK', category: 'Other' });
+    (reimbursement as any).reimburses_id = dinner.id;
+    const r = calc([dinner, reimbursement]);
+    expect(r.creditCardSpending).toBe(0);            // clamp at 0
+    expect(r.reimbursementsApplied).toBe(100);       // capped at purchase amount, NOT 200
+  });
+
   it('never lets a reimbursement push spending below zero', () => {
     const dinner = tx({ cardId: 3, amount: -20, date: '2026-04-05', description: 'DINNER', category: 'Food' });
     const reimbursement = tx({ cardId: 1, amount: 50, date: '2026-04-08', description: 'PAYBACK', category: 'Other' });

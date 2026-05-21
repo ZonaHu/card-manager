@@ -1,8 +1,11 @@
 # Card Manager
 
+[![test](https://github.com/ZonaHu/card-manager/actions/workflows/test.yml/badge.svg)](https://github.com/ZonaHu/card-manager/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 Self-hosted personal finance dashboard. Connects to your Canadian/US bank accounts via Plaid, syncs transactions, surfaces recurring costs, e-Transfer activity, fixed monthly bills, net-worth history, and budgets. Single-user-per-deployment by design.
 
-> **Status:** active personal-use; backend hardened (encrypted access tokens, refresh-token rotation, request-id tracing, atomic sync, soft-delete), frontend mobile-friendly, 142 tests green.
+> **Status:** active personal-use; backend hardened (encrypted access tokens, refresh-token rotation, request-id tracing, atomic sync, soft-delete), frontend mobile-friendly, 147 tests green.
 
 ---
 

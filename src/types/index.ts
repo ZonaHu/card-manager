@@ -87,6 +87,12 @@ export interface MonthlyData {
   // skipped rows so the "N transactions" caption matches what's counted.
   spendingTxnCount?: number;
   incomeTxnCount?: number;
+  // Id sets surfaced for the dashboard "drill into Spending/Income" tiles.
+  // Filtering the transaction list to exactly these ids shows only the rows
+  // that actually contributed to the headline numbers — no Transfer /
+  // Deposit / wash / pending noise.
+  spendingContributorIds?: Set<number>;
+  incomeContributorIds?: Set<number>;
 }
 
 export interface UserRegion {

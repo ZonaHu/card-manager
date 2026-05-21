@@ -97,6 +97,11 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
     category?: string; cardId?: number | null; pendingOnly?: boolean;
     minAmount?: number; maxAmount?: number;
   }>(() => readPersisted(CHIPS_KEY, {}, PERSIST_VERSION));
+  // Optional drill-down id-set applied on top of chipFilters. Set by clicking
+  // the Spending/Income tile; cleared when the user clicks "clear filters" or
+  // edits any chip. Not persisted — drill state should not survive reload.
+  const [drillIds, setDrillIds] = useState<Set<number> | null>(null);
+  const [drillLabel, setDrillLabel] = useState<string | null>(null);
   const [snapshots, setSnapshots] = useState<Array<{ card_id: number; date: string; balance: number }>>([]);
   const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
   const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
@@ -547,21 +552,20 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           onMonthChange={setCurrentMonth}
           onScrollToTransactions={scrollToTransactions}
           onShowIncomeTransactions={() => {
-            // Drill down: chip-filter to category=Income so the user sees
-            // exactly the rows contributing to the headline. Most income
-            // rows land in this category via Plaid mapping (Payroll, tax
-            // refunds, Direct deposit). A few may slip through with other
-            // categories — accepted trade-off for a simple chip.
-            setChipFilters({ category: 'Income' });
+            // Drill down to the EXACT id-set that contributed to the Income
+            // headline — no Interest / refund-tagged / mis-tagged rows.
+            // Read straight from the calculated MonthlyData.
+            setDrillIds(monthlyData.incomeContributorIds ?? new Set());
+            setDrillLabel('Income contributors');
+            setChipFilters({});
             setSearchQuery('');
             scrollToTransactions();
           }}
           onShowSpendingTransactions={() => {
-            // Spending = multiple categories minus Transfer/Deposit/etc.
-            // Chip system can't express "exclude these N categories", so for
-            // now just clear filters + scroll. User can apply chips manually
-            // if they want to slice further. A future "exclude categories"
-            // chip type would let this filter exactly.
+            // Same precision for Spending — only rows that actually
+            // contributed (excludes Transfer/Deposit/pending/wash/e-transfer).
+            setDrillIds(monthlyData.spendingContributorIds ?? new Set());
+            setDrillLabel('Spending contributors');
             setChipFilters({});
             setSearchQuery('');
             scrollToTransactions();
@@ -681,7 +685,7 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
                 </div>
                 <button
                   onClick={() => {
-                    const filtered = applyFilters(monthlyData.transactions, { query: searchQuery, ...chipFilters });
+                    const filtered = applyFilters(monthlyData.transactions, { query: searchQuery, ...chipFilters, idAllowlist: drillIds ?? undefined });
                     downloadCsv(`transactions-${currentMonth}.csv`, transactionsToCsv(filtered, cards));
                   }}
                   className="flex items-center gap-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg"
@@ -705,22 +709,30 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               </div>
             </div>
 
-            <TransactionFilterChips cards={cards} filters={chipFilters} onChange={setChipFilters} />
+            {/* Chip changes implicitly clear drill state — if the user is
+                refining filters manually, the "show only contributors" id-set
+                is stale. */}
+            <TransactionFilterChips
+              cards={cards}
+              filters={chipFilters}
+              onChange={(next) => { setChipFilters(next); setDrillIds(null); setDrillLabel(null); }}
+            />
 
             <TransactionsList
-              transactions={applyFilters(monthlyData.transactions, { query: searchQuery, ...chipFilters })}
+              transactions={applyFilters(monthlyData.transactions, { query: searchQuery, ...chipFilters, idAllowlist: drillIds ?? undefined })}
               allTransactions={transactions}
               cards={cards}
               userRegion={userRegion}
               onTransactionClick={handleTransactionClick}
               filtersActive={
                 searchQuery.trim().length > 0 ||
+                drillIds !== null ||
                 Object.keys(chipFilters).some(k => {
                   const v = (chipFilters as any)[k];
                   return v !== undefined && v !== null && v !== '' && v !== 'all' && v !== false;
                 })
               }
-              onClearFilters={() => { setSearchQuery(''); setChipFilters({}); }}
+              onClearFilters={() => { setSearchQuery(''); setChipFilters({}); setDrillIds(null); setDrillLabel(null); }}
               selectedIds={selectedTxIds}
               onToggleSelect={toggleTxSelect}
               onToggleSelectAll={toggleSelectAll}
