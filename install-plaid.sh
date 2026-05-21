@@ -12,7 +12,7 @@ cd server
 npm install plaid
 cd ..
 
-echo "✅ Plaid packages installed!"
+echo "Plaid packages installed."
 echo ""
 echo "Next steps:"
 echo "1. Get Plaid credentials from https://dashboard.plaid.com"

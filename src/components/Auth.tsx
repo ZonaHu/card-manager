@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 interface AuthProps {
   onLogin: (token: string, user: any) => void;
@@ -16,29 +17,17 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Check for Google OAuth redirect
+  // Google OAuth result is signaled via ?auth=ok|failed (the JWT is in an httpOnly cookie).
+  // App.tsx calls /api/auth/me on mount to finalize the session, so here we just surface failures.
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const userParam = urlParams.get('user');
-
-    if (token && userParam) {
-      try {
-        const user = JSON.parse(decodeURIComponent(userParam));
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
-        onLogin(token, user);
-        // Clean up URL
-        window.history.replaceState({}, document.title, '/');
-      } catch (err) {
-        setError('Failed to process Google login');
-      }
+    const authParam = new URLSearchParams(window.location.search).get('auth');
+    if (authParam === 'failed') {
+      setError('Google sign-in failed. Please try again.');
     }
-  }, [onLogin]);
+  }, []);
 
   const handleGoogleLogin = () => {
-    // Google OAuth is now configured - redirect to backend
-    window.location.href = 'http://localhost:3001/api/auth/google';
+    window.location.href = `${API_BASE_URL}/api/auth/google`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,11 +41,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         ? { email: formData.email, password: formData.password }
         : formData;
 
-      const response = await fetch(`http://localhost:3001${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
@@ -66,9 +54,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         throw new Error(data.error || 'Something went wrong');
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      onLogin(data.token, data.user);
+      // Auth cookie has been set by the server. Pass the user up; token kept for compat.
+      onLogin(data.token || '', data.user);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -155,7 +142,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Enter your password"
                 required
-                minLength={6}
+                minLength={isLogin ? 1 : 8}
               />
               <button
                 type="button"
@@ -167,7 +154,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
             {!isLogin && (
               <p className="text-xs text-gray-500 mt-1">
-                Password must be at least 6 characters long
+                Password must be at least 8 characters long
               </p>
             )}
           </div>
@@ -234,7 +221,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
         <div className="mt-8 pt-6 border-t border-gray-200">
           <p className="text-xs text-gray-500 text-center">
-            🔒 Your data is encrypted and secure
+            Your data is encrypted and secure
           </p>
         </div>
       </div>

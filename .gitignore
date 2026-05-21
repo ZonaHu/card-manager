@@ -20,6 +20,8 @@ server/database.db
 server/database.db-journal
 server/database.db-wal
 server/database.db-shm
+server/database.db.*.bak
+server/backups/
 *.sqlite
 *.sqlite3
 *.db
@@ -55,6 +57,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Cookie jars (curl, httpie, etc.)
+cookies.txt
+*.cookie
+*.cookies
 
 # Runtime data
 pids/
@@ -136,3 +143,5 @@ tmp/
 
 # Mac specific files
 **/.DS_Store
+# Claude Code session artifacts
+.claude/

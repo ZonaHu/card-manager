@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Auth from './components/Auth';
-import CardManagerWithAuth from './components/CardManagerWithAuth';
 import CardManagerRefactored from './components/CardManagerRefactored';
+import ErrorBoundary from './components/ErrorBoundary';
+import { API_BASE_URL } from './config/api';
 
 interface User {
   id: number;
@@ -11,36 +12,42 @@ interface User {
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-
-    if (savedToken && savedUser) {
+    let cancelled = false;
+    // Auth flows through an httpOnly cookie. Ask the server who we are rather than
+    // trusting anything from localStorage. Also strips any stale ?auth=ok/failed
+    // parameter the OAuth callback left behind.
+    (async () => {
       try {
-        const parsedUser = JSON.parse(savedUser);
-        setToken(savedToken);
-        setUser(parsedUser);
-      } catch (error) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: 'include' });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        }
+      } catch {
+        /* not logged in */
+      } finally {
+        if (!cancelled) setLoading(false);
+        if (window.location.search.includes('auth=')) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
       }
-    }
-    setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleLogin = (token: string, user: User) => {
-    setToken(token);
-    setUser(user);
+  const handleLogin = (_token: string, u: User) => {
+    setUser(u);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch {
+      /* ignore */
+    }
     setUser(null);
   };
 
@@ -55,11 +62,19 @@ const App: React.FC = () => {
     );
   }
 
-  if (!user || !token) {
-    return <Auth onLogin={handleLogin} />;
+  if (!user) {
+    return (
+      <ErrorBoundary>
+        <Auth onLogin={handleLogin} />
+      </ErrorBoundary>
+    );
   }
 
-  return <CardManagerRefactored user={user} token={token} onLogout={handleLogout} />;
+  return (
+    <ErrorBoundary>
+      <CardManagerRefactored user={user} token="" onLogout={handleLogout} />
+    </ErrorBoundary>
+  );
 };
 
 export default App;

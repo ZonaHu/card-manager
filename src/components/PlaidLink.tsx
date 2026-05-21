@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { ExternalLink, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 interface PlaidLinkProps {
   token: string;
@@ -18,10 +19,11 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, onClose, isNewU
   useEffect(() => {
     const fetchLinkToken = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/plaid/create-link-token', {
+        const response = await fetch(`${API_BASE_URL}/api/plaid/create-link-token`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             'Content-Type': 'application/json',
           },
         });
@@ -47,10 +49,11 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, onClose, isNewU
   const onSuccessCallback = useCallback(async (public_token: string, metadata: any) => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/plaid/exchange-public-token', {
+      const response = await fetch(`${API_BASE_URL}/api/plaid/exchange-public-token`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -81,7 +84,7 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, onClose, isNewU
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl p-6 w-full max-w-md text-center">
           <Loader className="animate-spin w-12 h-12 text-blue-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Setting up bank connection...</h3>
@@ -93,7 +96,7 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, onClose, isNewU
 
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl p-6 w-full max-w-md">
           <div className="text-center mb-4">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
@@ -120,23 +123,23 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, onClose, isNewU
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-lg">
         {isNewUser && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
               <CheckCircle className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-blue-800 mb-2">Welcome to Card Manager! 👋</h3>
+                <h3 className="font-semibold text-blue-800 mb-2">Welcome to Card Manager</h3>
                 <p className="text-blue-700 text-sm mb-3">
                   Connect your bank accounts to automatically import your cards and transactions. This is the fastest way to get started!
                 </p>
                 <div className="space-y-1 text-xs text-blue-600">
-                  <p>✅ Bank-level security with 256-bit encryption</p>
-                  <p>✅ Read-only access to your accounts</p>
-                  <p>✅ Supports 11,000+ financial institutions</p>
-                  <p>✅ Automatic transaction categorization</p>
-                  <p>🧪 Running in Sandbox Mode (test data)</p>
+                  <p>Bank-level security with 256-bit encryption</p>
+                  <p>Read-only access to your accounts</p>
+                  <p>Supports 11,000+ financial institutions</p>
+                  <p>Automatic transaction categorization</p>
+                  <p>Running in Sandbox Mode (test data)</p>
                 </div>
               </div>
             </div>
@@ -190,9 +193,9 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, onClose, isNewU
         </div>
 
         <div className="text-xs text-gray-500 text-center space-y-1">
-          <p>🔒 Your credentials are encrypted and never stored</p>
-          <p>📱 Powered by Plaid - trusted by millions</p>
-          <p>🏦 Read-only access - we cannot make transactions</p>
+          <p>Your credentials are encrypted and never stored</p>
+          <p>Powered by Plaid - trusted by millions</p>
+          <p>Read-only access - we cannot make transactions</p>
         </div>
       </div>
     </div>
