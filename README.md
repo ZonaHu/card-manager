@@ -372,25 +372,59 @@ The migrator runs on every boot; if you restore from before a migration was adde
 
 ---
 
-## Security model
+## Security + threat model
+
+**Honest framing first:** no internet-connected app is un-hackable. The right question is *which attacks are made cost-prohibitive* and *which require the operator (you) to harden the surrounding environment*. Below is the realistic threat model for a self-hosted single-user deployment.
+
+### What the app defends against (hardened)
 
 | Surface | What's done |
 |---|---|
-| Passwords | bcrypt @ cost 10 (12 in production). Minimum 8 chars enforced server-side. |
-| Sessions | httpOnly JWT cookie, 15 min TTL. Refresh-token rotation (7-day TTL, single-use, atomic via SQL guard). |
-| Logout | Bumps `token_version` server-side, invalidates every JWT cookie issued before. |
-| Secrets | App refuses to start with placeholder values from `.env.example`. Min 16 chars enforced for `JWT_SECRET` + `SESSION_SECRET`. |
-| Plaid access tokens | AES-256-GCM at rest. Migration 014 backfills any legacy plaintext rows on boot. |
-| CSRF | SameSite=strict cookies in production. |
-| XSS | React's default escaping + Helmet CSP (script-src `'self'` in prod; dev relaxes for Vite HMR only). |
-| SQL injection | All queries parameterized. No string interpolation into SQL. |
-| Webhook auth | Plaid JWT verification (ES256, JWKS public key) when `PLAID_WEBHOOK_JWT_VERIFICATION=true`. Shared-secret fallback. Body-hash + iat freshness check. |
-| Rate limiting | `/auth/*` paths rate-limited via express-rate-limit. |
-| Audit | `X-Request-ID` middleware tags every request; server logs reference it; `sendServerError` returns the id in the response body so users can quote it in bug reports. |
-| Cross-user isolation | Every query scoped `WHERE user_id = ?`. Reimbursement linking, batch recategorize, soft-delete all verified by tests against a second user. |
-| Backups | Endpoint admin-gated via `ADMIN_USER_IDS`. Backup file is plaintext SQLite — store securely. |
+| SQL injection | Every query parameterized. No string interpolation into SQL. Audited multiple times. |
+| JWT forgery / session hijack | httpOnly + SameSite=strict cookies in prod. JWT signed with 32-byte random `JWT_SECRET`. Server refuses placeholder values at boot. Logout bumps `token_version` server-side → every previously-issued cookie stops verifying. |
+| Refresh-token replay | Atomic SQL guard (`WHERE revoked_at IS NULL` + `this.changes !== 1` losers get 401). Two concurrent `/refresh` calls produce exactly one new token. |
+| XSS via user input | React escapes by default. Notes/descriptions rendered as text only. CSP `script-src 'self'` in production. |
+| CSRF | SameSite=strict cookies. |
+| Plaid access tokens at rest | AES-256-GCM with the `enc:v1:` envelope. Migration 014 backfilled any legacy plaintext rows. Tokens only decrypted in-memory during sync. |
+| Cross-user data reach | Every query scoped `WHERE user_id = ?`. Reimbursement linking, batch recategorize, soft-delete + restore all have cross-user isolation tests against a second registered user. |
+| Plaid webhook spoofing | ES256 JWT verification via Plaid's JWKS endpoint (when `PLAID_WEBHOOK_JWT_VERIFICATION=true`). Body-hash + iat freshness checks. Shared-secret fallback in dev only — production refuses unverified. |
+| Brute-force login (slowed) | `/auth/*` rate-limited 20 attempts / 15 min. **Not a permanent lockout** — see "What it doesn't defend" below. |
+| Reconcile-wipe attacks | Full Sync's reconcile step refuses to delete local rows if Plaid returns 0 transactions or >50% of local rows are missing. |
 
-For the full reviewer-driven hardening trail, see git history c3f568f3..HEAD.
+### What it doesn't defend against (you handle this)
+
+| Threat | Mitigation (your responsibility) |
+|---|---|
+| **Plain HTTP** — cookies sniffable, session stolen on any open Wi-Fi | Terminate HTTPS at a reverse proxy (Caddy, nginx, Cloudflare). The app does NOT enforce TLS in code; it assumes upstream handles it. |
+| **Stolen / unlocked laptop** — filesystem access exposes `.env` → `JWT_SECRET`, `ENCRYPTION_KEY` → can decrypt every Plaid token + dump the SQLite | Full-disk encryption (FileVault on macOS, LUKS on Linux, BitLocker on Windows). Screen-lock on idle. |
+| **Backup theft** — `server/backups/*.db` is plaintext SQLite | Encrypt before syncing to cloud. Pipe `backup-db.sh` output through `age` or `gpg`. |
+| **Credential stuffing** — your password was leaked in a different breach + you reused it | Unique password per service + a password manager. App has no 2FA (yet — see `ROADMAP.md`). No account lockout after N failures. |
+| **DDoS / resource exhaustion** — `/api/*` has a 120/min rate limiter but app-layer floods can still degrade the single-process server | Put it behind Cloudflare (free tier covers this) or a similar edge service. |
+| **Malicious browser extension** — extensions can read DOM + make authenticated API calls as you | Run a minimal extension set. Out of the app's defensive scope. |
+| **Compromised npm dependency** — supply-chain attacks via typo-squatted or maintainer-hijacked packages | CI runs `npm audit --omit=dev --audit-level=high`. Pin versions. Review lockfile bumps. No silver bullet for any npm-based project. |
+| **Operator runs as a multi-tenant SaaS** — backup endpoint dumps the entire DB, no per-tenant isolation in the UX | Don't. The whole project is single-user-per-deployment by design (see `SECURITY.md`). |
+
+### Operator checklist before exposing publicly
+
+If you're hosting this beyond `localhost`:
+
+- [ ] Generate fresh `JWT_SECRET`, `SESSION_SECRET`, `ENCRYPTION_KEY` (server refuses placeholders at boot — confirm by trying to start with the example values)
+- [ ] Set `NODE_ENV=production` (bcrypt cost rises to 12, cookies set `secure: true` + `sameSite: 'strict'`)
+- [ ] Reverse proxy terminating HTTPS (Caddy is easiest — handles cert renewal automatically)
+- [ ] Disk encryption on the host machine
+- [ ] Set `ADMIN_USER_IDS=<your_user_id>` so the backup endpoint isn't open to anyone who registers
+- [ ] Set `PLAID_WEBHOOK_JWT_VERIFICATION=true` if exposing the webhook endpoint
+- [ ] Schedule `server/scripts/backup-db.sh` (cron / systemd timer) + encrypt backups before storing off-host
+- [ ] Use a strong, unique password (12+ chars, not reused from any other service)
+- [ ] Optionally restrict source IPs via reverse-proxy ACL to your own network
+
+### Honest risk verdict
+
+For **a single user running this on their own infra with the checklist above done**: the realistic attack surface is small. You're not a high-value target compared to large SaaS, and the hardening covers the standard attack categories.
+
+For **a multi-user public deployment**: don't. The threat model doesn't fit.
+
+For **completeness:** see [`SECURITY.md`](./SECURITY.md) for the full hardening trail + vulnerability disclosure flow. Reviewer-driven hardening trail in git: `git log --oneline c3f568f3..HEAD`.
 
 ---
 
