@@ -1,0 +1,66 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs for the same branch when a new push arrives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      # The server has its own package.json (Express + sqlite3 native deps),
+      # so install both top-level + server/. Each gets its own lock.
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: server
+
+      # Tests boot an in-memory SQLite app via tests/server/helpers.ts.
+      # buildTestApp sets dummy env vars itself, so no .env file is needed.
+      - name: Run tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      # Sanity check: confirm the bundle didn't balloon. Current sizes:
+      # main ~300 KB, NetWorthChart chunk ~392 KB. Generous ceilings so
+      # legit growth doesn't fail CI, but a 2x regression will.
+      - name: Bundle size guard
+        run: |
+          set -e
+          MAIN_KB=$(ls -l dist/assets/index-*.js | awk '{print int($5/1024)}')
+          CHART_KB=$(ls -l dist/assets/NetWorthChart-*.js | awk '{print int($5/1024)}')
+          echo "main: ${MAIN_KB} KB / NetWorthChart: ${CHART_KB} KB"
+          if [ "$MAIN_KB" -gt 600 ]; then
+            echo "::error::main bundle ${MAIN_KB} KB exceeds 600 KB ceiling"
+            exit 1
+          fi
+          if [ "$CHART_KB" -gt 800 ]; then
+            echo "::error::NetWorthChart chunk ${CHART_KB} KB exceeds 800 KB ceiling"
+            exit 1
+          fi

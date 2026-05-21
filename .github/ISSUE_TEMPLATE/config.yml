@@ -1,0 +1,11 @@
+# Disable freeform issues — funnel users into the templates above. Security
+# reports + general questions get their own contact links below.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ZonaHu/card-manager/blob/main/SECURITY.md
+    about: Read SECURITY.md first. Do NOT open a public issue for security bugs — email the maintainer directly.
+  - name: Question or discussion
+    url: https://github.com/ZonaHu/card-manager/discussions
+    about: For setup questions or "how do I…" usage queries, prefer Discussions over Issues.
