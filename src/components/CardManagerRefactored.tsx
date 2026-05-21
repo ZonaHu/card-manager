@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { CreditCard, Plus, X, ExternalLink, Sparkles, Trash2, AlertCircle, Check, Search, Download } from 'lucide-react';
+import { Plus, X, ExternalLink, Sparkles, AlertCircle, Check, Search, Download } from 'lucide-react';
 
 // Types and constants
 import type { Card, CardCategory, Transaction, MonthlyData, User, UserRegion, TransactionFilter, TransactionSort } from '../types';
@@ -32,6 +32,9 @@ import { ETransferPanel } from './dashboard/ETransferPanel';
 import { FixedCostsPanel } from './dashboard/FixedCostsPanel';
 import { DashboardSkeleton } from './dashboard/DashboardSkeleton';
 import { DashboardMenu } from './dashboard/DashboardMenu';
+import { DashboardHeader } from './dashboard/DashboardHeader';
+import { ReauthBanner } from './dashboard/ReauthBanner';
+import { CardGrid } from './dashboard/CardGrid';
 import { RulesPanel } from './dashboard/RulesPanel';
 import { SpendingComparison } from './dashboard/SpendingComparison';
 import { InvestmentEmptyHint } from './dashboard/InvestmentEmptyHint';
@@ -59,25 +62,6 @@ import type { PlaidItemSummary } from '../utils/syncStaleness';
 const SEARCH_KEY = 'card-manager:search';
 const CHIPS_KEY = 'card-manager:chip-filters';
 const PERSIST_VERSION = 1;
-
-// Tailwind's JIT can't see classes built from template literals, so a
-// `border-${color}-500` expression silently gets purged from the production
-// CSS. Static map lets the compiler keep each border class on the
-// safelist while still varying it by category.
-const CARD_BORDER_BY_COLOR: Record<string, string> = {
-  blue: 'border-blue-500',
-  green: 'border-green-500',
-  emerald: 'border-emerald-500',
-  purple: 'border-purple-500',
-  indigo: 'border-indigo-500',
-  violet: 'border-violet-500',
-  orange: 'border-orange-500',
-  red: 'border-red-500',
-  gray: 'border-gray-500'
-};
-function cardBorderClass(color: string | undefined): string {
-  return (color && CARD_BORDER_BY_COLOR[color]) || 'border-gray-500';
-}
 
 interface CardManagerProps {
   user: User;
@@ -446,53 +430,12 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Card Manager</h1>
-              <p className="text-gray-600">
-                Welcome back, {user.name}!
-                {(() => {
-                  // Surface the most recent sync state. If any connected card failed
-                  // its last attempt, prefer showing the failure (with reason) over
-                  // the older "synced" timestamp so the user knows data is stale.
-                  const failing = cards.filter(c =>
-                    c.last_sync_error && (!c.last_synced_at ||
-                      (c.last_sync_attempt_at && c.last_sync_attempt_at > (c.last_synced_at || ''))));
-                  if (failing.length > 0) {
-                    const codes = Array.from(new Set(failing.map(c => c.last_sync_error).filter(Boolean)));
-                    return <span className="text-xs text-amber-600 ml-2">· {failing.length} card{failing.length > 1 ? 's' : ''} not syncing ({codes.slice(0, 2).join(', ')})</span>;
-                  }
-                  const stamps = cards
-                    .map(c => c.last_synced_at)
-                    .filter(Boolean) as string[];
-                  if (stamps.length === 0) return null;
-                  const latest = stamps.sort().slice(-1)[0];
-                  const ms = Date.now() - new Date(latest + 'Z').getTime();
-                  const mins = Math.round(ms / 60000);
-                  const label = mins < 1 ? 'just now'
-                    : mins < 60 ? `${mins}m ago`
-                    : mins < 60 * 24 ? `${Math.round(mins / 60)}h ago`
-                    : `${Math.round(mins / 60 / 24)}d ago`;
-                  return <span className="text-xs text-gray-500 ml-2">· Synced {label}</span>;
-                })()}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleAddCardClick}
-              className={`${isNewUser ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg' : 'bg-indigo-600'} text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:shadow-md transition-all`}
-            >
-              {isNewUser ? <Sparkles size={16} /> : <Plus size={16} />}
-              {isNewUser ? 'Get Started' : 'Add Card'}
-            </button>
-            
+        <DashboardHeader
+          user={user}
+          cards={cards}
+          isNewUser={isNewUser}
+          onAddCardClick={handleAddCardClick}
+          menu={
             <DashboardMenu
               cards={cards}
               plaidItems={plaidItems}
@@ -517,57 +460,10 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
               }}
               onLogout={onLogout}
             />
-          </div>
-        </div>
+          }
+        />
 
-        {/* Reauth Banner — shown when any Plaid item needs credential update */}
-        {(() => {
-          const needsReauth = cards.filter(c => c.needs_reauth && c.item_id);
-          if (needsReauth.length === 0) return null;
-          const byItem = new Map<string, { itemId: string; institutionName: string; accounts: string[] }>();
-          needsReauth.forEach(c => {
-            const itemId = c.item_id!;
-            if (!byItem.has(itemId)) {
-              byItem.set(itemId, {
-                itemId,
-                institutionName: c.institution_name || 'your bank',
-                accounts: []
-              });
-            }
-            byItem.get(itemId)!.accounts.push(`${c.name} ••••${c.last_four}`);
-          });
-          return (
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold text-amber-900 mb-2">
-                    {byItem.size === 1 ? 'One bank needs' : `${byItem.size} banks need`} reauthentication
-                  </p>
-                  <p className="text-sm text-amber-800 mb-3">
-                    Plaid returned a credential/MFA error. Transaction sync is paused for these accounts until you reauthorize.
-                  </p>
-                  <div className="space-y-2">
-                    {Array.from(byItem.values()).map(item => (
-                      <div key={item.itemId} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-amber-200">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">{item.institutionName}</div>
-                          <div className="text-gray-500 text-xs">{item.accounts.join(', ')}</div>
-                        </div>
-                        <button
-                          onClick={() => setReauthTarget({ itemId: item.itemId, institutionName: item.institutionName })}
-                          className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700"
-                        >
-                          Reconnect
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        <ReauthBanner cards={cards} onReconnect={setReauthTarget} />
 
         {/* Sync Banner */}
         {syncBanner?.show && (
@@ -658,94 +554,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           onScrollToTransactions={scrollToTransactions}
         />
 
-        {/* Cards Section */}
-        {cards.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Your Cards</h2>
-              <div className="flex gap-2">
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="all">All Categories</option>
-                  <option value="credit">Credit Cards</option>
-                  <option value="chequing">Chequing Accounts</option>
-                  <option value="savings">Savings Accounts</option>
-                  <option value="tfsa">TFSA</option>
-                  <option value="rrsp">RRSP</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {displayedCards.map(card => (
-                <button
-                  key={card.id}
-                  onClick={() => handleCardClick(card)}
-                  className={`bg-white rounded-xl p-6 shadow-lg border-l-4 hover:shadow-xl transition-all cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-indigo-300 ${cardBorderClass(card.categoryInfo?.color)}`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <CreditCard className="w-6 h-6 text-gray-500" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{card.name}</h3>
-                        <p className="text-sm text-gray-500">
-                          {card.categoryInfo?.label} •••• {card.last_four}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {card.connected && (
-                        <div className="w-2 h-2 bg-green-500 rounded-full" title="Connected to Plaid"></div>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteCard(card.id);
-                        }}
-                        className="text-gray-400 hover:text-red-600 transition-colors"
-                        title="Delete card"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Balance</span>
-                      <span className={`font-semibold ${card.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(Math.abs(card.balance), card.currency || userRegion.currency)}
-                      </span>
-                    </div>
-                    
-                    {card.institution_name && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Institution</span>
-                        <span className="text-sm text-gray-900">{card.institution_name}</span>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Status</span>
-                      <span className={`text-sm px-2 py-1 rounded-full ${card.connected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                        {card.connected ? 'Auto-sync' : 'Manual'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {card.categoryInfo?.description && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-xs text-gray-500">{card.categoryInfo.description}</p>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        <CardGrid
+          cards={displayedCards}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={setCategoryFilter}
+          userRegion={userRegion}
+          onCardClick={handleCardClick}
+          onDeleteCard={deleteCard}
+        />
 
         <InvestmentEmptyHint cards={cards} transactions={transactions} />
 
