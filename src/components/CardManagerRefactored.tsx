@@ -548,15 +548,6 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           onScrollToTransactions={scrollToTransactions}
         />
 
-        <CardGrid
-          cards={displayedCards}
-          categoryFilter={categoryFilter}
-          onCategoryFilterChange={setCategoryFilter}
-          userRegion={userRegion}
-          onCardClick={handleCardClick}
-          onDeleteCard={deleteCard}
-        />
-
         <InvestmentEmptyHint cards={cards} transactions={transactions} />
 
         {/* Insights row — net worth + budgets + recurring */}
@@ -716,6 +707,18 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
             />
           </div>
         </div>
+
+        {/* Cards section moved to the bottom — they change rarely vs the
+            spend/transactions data above. Useful as reference, not daily
+            attention. */}
+        <CardGrid
+          cards={displayedCards}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={setCategoryFilter}
+          userRegion={userRegion}
+          onCardClick={handleCardClick}
+          onDeleteCard={deleteCard}
+        />
 
         <DashboardModals
           token={token}
