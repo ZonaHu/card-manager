@@ -546,6 +546,26 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           currentMonth={currentMonth}
           onMonthChange={setCurrentMonth}
           onScrollToTransactions={scrollToTransactions}
+          onShowIncomeTransactions={() => {
+            // Drill down: chip-filter to category=Income so the user sees
+            // exactly the rows contributing to the headline. Most income
+            // rows land in this category via Plaid mapping (Payroll, tax
+            // refunds, Direct deposit). A few may slip through with other
+            // categories — accepted trade-off for a simple chip.
+            setChipFilters({ category: 'Income' });
+            setSearchQuery('');
+            scrollToTransactions();
+          }}
+          onShowSpendingTransactions={() => {
+            // Spending = multiple categories minus Transfer/Deposit/etc.
+            // Chip system can't express "exclude these N categories", so for
+            // now just clear filters + scroll. User can apply chips manually
+            // if they want to slice further. A future "exclude categories"
+            // chip type would let this filter exactly.
+            setChipFilters({});
+            setSearchQuery('');
+            scrollToTransactions();
+          }}
         />
 
         <InvestmentEmptyHint cards={cards} transactions={transactions} />

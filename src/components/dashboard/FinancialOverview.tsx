@@ -8,7 +8,13 @@ interface FinancialOverviewProps {
   userRegion: UserRegion;
   currentMonth: string;
   onMonthChange: (month: string) => void;
+  // Generic "scroll without filtering" — used by the Period + Net tiles.
   onScrollToTransactions?: () => void;
+  // Drill-down: clicking Spending/Income should filter the list to the rows
+  // that actually contributed to that number, not just scroll to an
+  // unfiltered view (which is misleading).
+  onShowSpendingTransactions?: () => void;
+  onShowIncomeTransactions?: () => void;
 }
 
 export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
@@ -16,7 +22,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   userRegion,
   currentMonth,
   onMonthChange,
-  onScrollToTransactions
+  onScrollToTransactions,
+  onShowSpendingTransactions,
+  onShowIncomeTransactions
 }) => {
   // Net cash flow = income - total cash out of deposit accounts (includes CC
   // payments, excludes credit card spending since that's debt, not cash).
@@ -42,9 +50,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         />
       </div>
 
-      {/* Total Spending */}
-      <button 
-        onClick={onScrollToTransactions}
+      {/* Total Spending — clicking filters the txn list to spending-only rows
+          (negative, not pending, not Transfer/Deposit/e-Transfer) so the user
+          sees exactly the rows that contributed to the headline number. */}
+      <button
+        onClick={onShowSpendingTransactions ?? onScrollToTransactions}
         className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
       >
         <div className="flex items-center gap-3 mb-2">
@@ -69,9 +79,12 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         )}
       </button>
 
-      {/* Total Income */}
-      <button 
-        onClick={onScrollToTransactions}
+      {/* Total Income — clicking filters the txn list to category=Income so
+          the user sees the rows that actually contributed (mostly payroll +
+          tax refunds). Fallback to plain scroll if the parent didn't wire
+          the drill-down. */}
+      <button
+        onClick={onShowIncomeTransactions ?? onScrollToTransactions}
         className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer text-left w-full"
       >
         <div className="flex items-center gap-3 mb-2">
