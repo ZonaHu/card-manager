@@ -116,6 +116,13 @@ module.exports = function makePlaidRoutes(deps) {
 
   // After the user finishes Link update mode, Plaid still returns the same access_token
   // so we just clear the reauth flag. The next sync will re-verify.
+  //
+  // Must clear ALL three pieces of stale state, otherwise the dashboard still
+  // surfaces the reauth error:
+  //   1. cards.needs_reauth + cards.reauth_error_code (used by ReauthBanner)
+  //   2. cards.last_sync_error                       (used by DashboardHeader sync-status hint)
+  //   3. plaid_items.needs_reauth + reauth_error_code + last_sync_error
+  //                                                  (used by SyncStatusList + staleness banner)
   router.post('/update-complete', authenticateToken, async (req, res) => {
     try {
       const itemId = req.body && req.body.item_id ? String(req.body.item_id) : null;
@@ -130,7 +137,38 @@ module.exports = function makePlaidRoutes(deps) {
       });
       if (!rows || rows.length === 0) return sendClientError(res, 'Item not found', 404);
 
-      await clearCardsReauth(rows.map(r => r.id));
+      const cardIds = rows.map(r => r.id);
+      await clearCardsReauth(cardIds);
+
+      // Also clear last_sync_error on those cards so the "N cards not syncing"
+      // header hint stops firing. The next successful sync would have done
+      // this anyway, but the user expects the reauth itself to make the
+      // warning go away.
+      await new Promise((resolve, reject) => {
+        const placeholders = cardIds.map(() => '?').join(',');
+        db.run(
+          `UPDATE cards SET last_sync_error = NULL WHERE id IN (${placeholders})`,
+          cardIds,
+          err => err ? reject(err) : resolve()
+        );
+      });
+
+      // Clear the parallel plaid_items state — sync iterates plaid_items, so
+      // leaving needs_reauth=1 there would block the very next sync.
+      const items = await plaidItems.loadItemsForUser(db, req.user.userId);
+      for (const item of items) {
+        if (item.item_id === itemId) {
+          await plaidItems.clearItemReauth(db, item.id);
+          await new Promise((resolve, reject) =>
+            db.run(
+              'UPDATE plaid_items SET last_sync_error = NULL WHERE id = ?',
+              [item.id],
+              err => err ? reject(err) : resolve()
+            )
+          );
+        }
+      }
+
       res.json({ message: 'Reauthentication cleared', itemsUpdated: rows.length });
     } catch (error) {
       sendServerError(res, error, 'Failed to clear reauth state');

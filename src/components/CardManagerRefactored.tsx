@@ -729,9 +729,14 @@ const CardManagerRefactored: React.FC<CardManagerProps> = ({ user, token, onLogo
           onClosePlaidLink={() => setShowPlaidLink(false)}
           reauthTarget={reauthTarget}
           onReauthSuccess={() => {
+            const name = reauthTarget?.institutionName;
             setReauthTarget(null);
-            setSyncBanner({ show: true, message: `${reauthTarget?.institutionName} reconnected. Syncing…`, type: 'info' });
-            loadData();
+            setSyncBanner({ show: true, message: `${name} reconnected. Syncing…`, type: 'info' });
+            // Actually trigger a sync — loadData alone only refreshes the
+            // dashboard from existing DB rows; the user expects the
+            // "Syncing…" banner to fire a real sync against Plaid. The
+            // sync handler internally calls loadData on completion.
+            syncTransactions('recent');
           }}
           onReauthExit={() => setReauthTarget(null)}
           showRegionSelector={showRegionSelector}
