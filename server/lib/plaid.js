@@ -40,11 +40,19 @@ const BILLS_RE = /\bchexy\b|\bmetergy\b|\benbridge\b|\btoronto hydro\b|\bhydro o
 // not earnings — route to Transfer so spend calc + dashboard tile both treat
 // them correctly.
 const CC_PAYMENT_RE = /\bpayment received\b|\bcc pmt\b|\bcredit card payment\b|\bautopay\b/i;
+// Internal account transfers — observed real bank descriptions for moving
+// money between own accounts. Without these, rows like "INTERNET TRANSFER
+// 000000212707" or "JQ493 TFR-TO 6057971" land in Other / Shopping and
+// bloat the Category Breakdown even though the spend calc usually catches
+// them via the matching-positive heuristic at runtime. Tagging Transfer in
+// the DB makes the visual + the math agree.
+const INTERNAL_TRANSFER_RE = /^internet transfer\b|^transfer out\b|\btfr[- ]to\b|^[a-z]{2}\d{3} ?tfr\b|^transfer to\b|\bpreauthorized debit wealthsimple\b|\bpreauthorized debit questrade\b/i;
 
 function detectByDescription(desc) {
   if (!desc) return null;
   if (CASH_OUT_RE.test(desc)) return 'Cash';
   if (CC_PAYMENT_RE.test(desc)) return 'Transfer';
+  if (INTERNAL_TRANSFER_RE.test(desc)) return 'Transfer';
   if (BILLS_RE.test(desc)) return 'Bills';
   // Direct deposit + payroll usually mean income — let the existing rule
   // handle "Direct deposit" suffix below; only treat plain "DEPOSIT *" as a

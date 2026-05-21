@@ -4,6 +4,22 @@ Forward-looking. Items here are NOT promises — just what's likely to land if/w
 
 For the security-only subset, see [`SECURITY.md`](./SECURITY.md). For implementation plans of work already shipped, see [`docs/superpowers/plans/`](./docs/superpowers/plans/).
 
+## Recently shipped (cross-out as done)
+
+- ✅ GitHub Actions CI (test + build + npm audit + bundle-size guard) — `.github/workflows/test.yml`
+- ✅ Reconcile-safety guards (Full Sync no longer wipes local rows on empty Plaid response)
+- ✅ Drill-down precision — Spending/Income tile clicks use exact contributor id-sets, not approximate category filters
+- ✅ Reimbursement cap (`reimbursementsApplied` never overstates the headline reduction)
+- ✅ countAsIncome guard against mis-tagged CC payment rows
+- ✅ Refund-via-Interac routing fix
+- ✅ Pending exclusion from FixedCostsPanel + RecurringList
+- ✅ byCategory reconciliation with the Spending headline
+- ✅ Encrypted access tokens at rest (migration 014 backfill)
+- ✅ Soft-delete + undo banner
+- ✅ Bulk recategorize action bar
+- ✅ Mobile responsiveness sweep
+- ✅ Repo OSS-readiness: LICENSE (MIT), SECURITY.md, ROADMAP.md, badges in README
+
 ---
 
 ## Security
@@ -35,7 +51,7 @@ For the security-only subset, see [`SECURITY.md`](./SECURITY.md). For implementa
 
 | Priority | Item | Status |
 |---|---|---|
-| 🔴 High | GitHub Actions CI (run tests + build on PRs) | Not started |
+| ✅      | GitHub Actions CI (run tests + build + audit on PRs) | Shipped |
 | 🔴 High | Dependabot / Renovate (deps drift over time) | Not started |
 | 🟡 Med  | Plaid webhook handling polish — auto-incremental-sync on DEFAULT_UPDATE | Partially wired |
 | 🟡 Med  | Idle session timeout (auto-logout after 30 min inactive) | Not started |
