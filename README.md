@@ -521,6 +521,9 @@ Next sync fails with `INVALID_ACCESS_TOKEN`. The backend deletes the `plaid_item
 ## Where to go next
 
 - **Maintainer / developer guide:** see [`DEVELOPMENT.md`](./DEVELOPMENT.md).
+- **Plaid setup deep-dive:** see [`docs/setup/PLAID_SETUP.md`](./docs/setup/PLAID_SETUP.md).
+- **Google OAuth setup:** see [`docs/setup/GOOGLE_OAUTH_SETUP.md`](./docs/setup/GOOGLE_OAUTH_SETUP.md).
+- **All docs index:** [`docs/README.md`](./docs/README.md).
 - **Issue tracker:** GitHub Issues.
 - **Plaid sandbox docs:** [plaid.com/docs/sandbox](https://plaid.com/docs/sandbox/).
 
