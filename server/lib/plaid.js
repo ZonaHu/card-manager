@@ -135,8 +135,15 @@ function clearCardsReauth(db, cardIds) {
 // has since been removed (duplicates, pending->posted swaps, merchant reversals)
 // simply doesn't appear. We delete local Plaid-sourced rows in the same
 // [startDate,endDate] window whose plaid_transaction_id is not in returnedIds.
-// Only safe to call after successful full pagination — an incomplete response
-// would falsely delete valid rows.
+//
+// CRITICAL: a Plaid response containing zero transactions but claiming complete
+// pagination would pass through here and DELETE every local row in the window.
+// That happens on rate-limit hiccups, briefly-empty responses after reauth,
+// etc. — and a single bad sync would wipe months of history. Guard rails:
+//   1. If returnedIds is empty AND we have local rows, REFUSE — clearly wrong.
+//   2. If returnedIds is smaller than half the local rows we'd otherwise delete,
+//      treat as suspicious and refuse — likely a partial response that
+//      pagination didn't catch.
 function reconcileRemovedTransactions(db, userId, cardIds, startDate, endDate, returnedIds) {
   if (!cardIds.length) return Promise.resolve(0);
   const placeholders = cardIds.map(() => '?').join(',');
@@ -150,6 +157,31 @@ function reconcileRemovedTransactions(db, userId, cardIds, startDate, endDate, r
         if (err) return reject(err);
         const stale = rows.filter(r => !returnedIds.has(r.plaid_transaction_id));
         if (stale.length === 0) return resolve(0);
+
+        // Safeguard A: empty response but local rows exist — refuse outright.
+        if (returnedIds.size === 0 && rows.length > 0) {
+          // Use console.warn here — `logger` lives in routes layer; this file
+          // is pure helpers. Caller logs context (userId, cards) separately.
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[reconcileRemovedTransactions] refusing to delete ${rows.length} local rows for ` +
+            `cards ${cardIds.join(',')} in [${startDate},${endDate}] — Plaid returned 0 transactions`
+          );
+          return resolve(0);
+        }
+
+        // Safeguard B: response is suspiciously small vs local count. If Plaid
+        // returned at least 1 row but the reconcile would delete more than half
+        // of local rows, something's wrong — refuse.
+        if (stale.length > rows.length * 0.5 && rows.length >= 10) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[reconcileRemovedTransactions] refusing to delete ${stale.length}/${rows.length} local rows for ` +
+            `cards ${cardIds.join(',')} in [${startDate},${endDate}] — > 50% reconcile rate is suspicious`
+          );
+          return resolve(0);
+        }
+
         const ids = stale.map(r => r.id);
         const delPlaceholders = ids.map(() => '?').join(',');
         db.run(

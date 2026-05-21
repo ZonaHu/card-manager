@@ -308,6 +308,35 @@ describe('calculateMonthlyData', () => {
     expect(r.reimbursementsApplied).toBe(0);      // headline must match
   });
 
+  it('byCategory reconciles with the Spending headline — excludes Transfer/wash/e-Transfer/pending rows', () => {
+    // Without the fix: byCategory would sum every negative row regardless of
+    // whether it actually contributed to Spending. Verified by mixing rows
+    // that the spending calc excludes vs counts.
+    const pendingRow = tx({ cardId: 1, amount: -20, date: '2026-04-08', description: 'PENDING COFFEE', category: 'Food' });
+    (pendingRow as any).pending = 1;
+    const r = calc([
+      tx({ cardId: 1, amount: -50, date: '2026-04-05', description: 'COFFEE', category: 'Food' }),                       // counts
+      tx({ cardId: 1, amount: -100, date: '2026-04-06', description: 'Transfer to savings', category: 'Transfer' }),     // excluded (Transfer category)
+      tx({ cardId: 1, amount: -30, date: '2026-04-07', description: 'INTERAC E-TRANSFER SEND Foo', category: 'Other' }), // excluded (e-Transfer)
+      pendingRow,                                                                                                         // excluded (pending)
+    ]);
+    const sumOfCategories = Object.values(r.byCategory).reduce((s, v) => s + v, 0);
+    expect(sumOfCategories).toBeCloseTo(r.spending, 2);
+    expect(r.byCategory.Food).toBe(50);                   // only the unfiltered coffee
+    expect(r.byCategory.Transfer).toBeUndefined();         // Transfer row was skipped
+  });
+
+  it('refund-via-Interac reduces spending instead of inflating eTransfersIn', () => {
+    // Lyft-style: a refund issued through an e-Transfer should NET the
+    // original purchase, not show up as "you received money" income.
+    const r = calc([
+      tx({ cardId: 3, amount: -50, date: '2026-04-10', description: 'LYFT ride', category: 'Transport' }),
+      tx({ cardId: 3, amount: 50, date: '2026-04-12', description: 'INTERAC E-TRANSFER LYFT Refund', category: 'Transport' })
+    ]);
+    expect(r.creditCardSpending).toBe(0);   // refund subtracts purchase
+    expect(r.eTransfersIn).toBe(0);          // NOT inflated by the refund
+  });
+
   it('never lets a reimbursement push spending below zero', () => {
     const dinner = tx({ cardId: 3, amount: -20, date: '2026-04-05', description: 'DINNER', category: 'Food' });
     const reimbursement = tx({ cardId: 1, amount: 50, date: '2026-04-08', description: 'PAYBACK', category: 'Other' });

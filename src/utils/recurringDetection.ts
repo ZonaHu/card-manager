@@ -72,8 +72,11 @@ function mergeBuckets(groups: Map<string, Transaction[]>): Map<string, Transacti
 
 export function detectRecurringTransactions(transactions: Transaction[]): RecurringTransaction[] {
   // Only consider outflows — recurring revenue (subscriptions where YOU are paid)
-  // is rare and we want this surfacing subscription costs to the user.
-  const outflows = transactions.filter(t => t.amount < 0);
+  // is rare and we want this surfacing subscription costs to the user. Skip
+  // pending: they often get replaced by a posted row with a different
+  // amount/date, which would either inflate occurrence count or break the
+  // ±15% bucket merge.
+  const outflows = transactions.filter(t => t.amount < 0 && !t.pending);
   const groups = new Map<string, Transaction[]>();
 
   for (const t of outflows) {

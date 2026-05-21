@@ -255,6 +255,17 @@ export function calculateMonthlyData({
   let spendingTxnCount = 0;
   let incomeTxnCount = 0;
 
+  // Replaces the old "raw" byCategory that summed every negative txn — that
+  // version included pending / washed / transfers / e-transfers / etc. and
+  // therefore did NOT reconcile with the Spending tile. This version is
+  // populated alongside the headline aggregates so byCategory sums match the
+  // Spending number that's actually displayed. Refunds subtract; clamp to 0.
+  const byCategory: Record<string, number> = {};
+  function addToByCategory(category: string, delta: number) {
+    const next = (byCategory[category] || 0) + delta;
+    byCategory[category] = Math.max(0, next);
+  }
+
   for (const t of filtered) {
     // Pending transactions can be modified or removed by Plaid before they
     // post — exclude them from spend/income aggregates to avoid double-counting
@@ -281,10 +292,19 @@ export function calculateMonthlyData({
     // eTransfersIn AND reduce the purchase — that would double-count.
     if (t.amount > 0 && typeof t.reimburses_id === 'number') continue;
 
+    // Refund check BEFORE e-Transfer detection: a refund-via-Interac (e.g.
+    // a Lyft refund issued as an e-Transfer) should reduce the original
+    // purchase, NOT inflate eTransfersIn. We only route refunds here when
+    // they're on a credit card — debit-card refunds get handled later in
+    // the positive-amount branch so we don't double-route.
+    const lowerDescEarly = (t.description ?? '').toLowerCase();
+    const looksLikeRefundEarly = t.amount > 0 && REFUND_KEYWORDS.test(t.description ?? '');
+
     // E-Transfers get tallied into their own bucket and DON'T touch spending
     // or income. They show up in their own dashboard panel so the user can see
-    // net Interac flow without it polluting headline numbers.
-    if (isETransfer(t)) {
+    // net Interac flow without it polluting headline numbers. Refunds routed
+    // via Interac fall through to the refund handling below instead.
+    if (isETransfer(t) && !looksLikeRefundEarly) {
       if (t.amount > 0) eTransfersIn += t.amount;
       else eTransfersOut += Math.abs(t.amount);
       continue;
@@ -293,7 +313,9 @@ export function calculateMonthlyData({
     if (t.amount < 0) {
       if (isCC) {
         const reimbursed = reimbursementByTarget.get(t.id) || 0;
-        creditCardSpending += Math.max(0, Math.abs(t.amount) - reimbursed);
+        const net = Math.max(0, Math.abs(t.amount) - reimbursed);
+        creditCardSpending += net;
+        addToByCategory(t.category, net);
         spendingTxnCount++;
         continue;
       }
@@ -331,7 +353,7 @@ export function calculateMonthlyData({
 
       // Wealthsimple / Questrade / etc. — money moves to user's brokerage,
       // not consumption.
-      const lowerDesc = (t.description ?? '').toLowerCase();
+      const lowerDesc = lowerDescEarly;
       if (isInvestmentContribution(lowerDesc)) continue;
 
       // Generic "Transfer out" / "Transfer" descriptions are how Plaid surfaces
@@ -352,8 +374,10 @@ export function calculateMonthlyData({
       }
 
       const reimbursed = reimbursementByTarget.get(t.id) || 0;
+      const net = Math.max(0, amount - reimbursed);
       depositAccountCashOutflow += amount;
-      depositAccountSpending += Math.max(0, amount - reimbursed);
+      depositAccountSpending += net;
+      addToByCategory(t.category, net);
       spendingTxnCount++;
     } else if (t.amount > 0) {
       // Credit-card positives split into two kinds:
@@ -361,14 +385,23 @@ export function calculateMonthlyData({
       //   merchant refund (description contains "refund"/"reversal"/"return")
       //     → reduces the original purchase, so subtract from creditCardSpending.
       // Same shape applies on deposit accounts for debit-card refunds.
-      const looksLikeRefund = REFUND_KEYWORDS.test(t.description ?? '');
+      // Clamp at 0 so a big-refund / small-purchase month can't push the
+      // spending total negative.
+      const looksLikeRefund = looksLikeRefundEarly;
       if (isCC) {
-        if (looksLikeRefund) creditCardSpending -= t.amount;
+        // Don't clamp during the loop — sort can put the refund BEFORE the
+        // purchase, in which case a transient negative is necessary for the
+        // final sum to come out right. Clamp at return time.
+        if (looksLikeRefund) {
+          creditCardSpending -= t.amount;
+          addToByCategory(t.category, -t.amount);
+        }
         continue;
       }
       if (looksLikeRefund) {
         depositAccountSpending -= t.amount;
         depositAccountCashOutflow -= t.amount;
+        addToByCategory(t.category, -t.amount);
         continue;
       }
       if (countAsIncome(t)) {
@@ -378,19 +411,20 @@ export function calculateMonthlyData({
     }
   }
 
-  const byCategory = filtered.reduce<Record<string, number>>((acc, t) => {
-    if (t.amount < 0) {
-      acc[t.category] = (acc[t.category] || 0) + Math.abs(t.amount);
-    }
-    return acc;
-  }, {});
+  // Clamp the spend buckets at zero on the way out. Refunds can exceed
+  // purchases in the visible window (sort order may put refund first, or
+  // a real big-refund month genuinely outpaces purchases) and a negative
+  // headline number would confuse users — show 0 spent instead.
+  const ccFinal = Math.max(0, creditCardSpending);
+  const depFinal = Math.max(0, depositAccountSpending);
+  const cashFinal = Math.max(0, depositAccountCashOutflow);
 
   return {
     transactions: filtered,
-    spending: creditCardSpending + depositAccountSpending,
-    creditCardSpending,
-    depositAccountSpending,
-    depositAccountCashOutflow,
+    spending: ccFinal + depFinal,
+    creditCardSpending: ccFinal,
+    depositAccountSpending: depFinal,
+    depositAccountCashOutflow: cashFinal,
     income,
     byCategory,
     eTransfersIn,

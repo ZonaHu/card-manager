@@ -82,6 +82,10 @@ export function summarizeFixedCosts(
 
   for (const t of transactions) {
     if (t.amount >= 0) continue;
+    // Skip pending — Plaid often replaces these with a posted row at a
+    // slightly different amount/date, so showing pending here would inflate
+    // the current-month total + show a misleading "+" delta vs prior month.
+    if (t.pending) continue;
     const cls = classify(t.description);
     if (!cls) continue;
     const monthKey = t.date.slice(0, 7);
