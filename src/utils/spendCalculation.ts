@@ -421,6 +421,10 @@ export function calculateMonthlyData({
         if (looksLikeRefund) {
           creditCardSpending -= t.amount;
           addToByCategory(t.category, -t.amount);
+          // Refund rows DID move the spending headline (downward) — include
+          // them in the drill-down so the user can see what offset the
+          // original purchase.
+          spendingContributorIds.add(t.id);
         }
         continue;
       }
@@ -428,6 +432,7 @@ export function calculateMonthlyData({
         depositAccountSpending -= t.amount;
         depositAccountCashOutflow -= t.amount;
         addToByCategory(t.category, -t.amount);
+        spendingContributorIds.add(t.id);
         continue;
       }
       if (countAsIncome(t)) {
