@@ -744,3 +744,7 @@ The architecture is stable. Likely next surfaces:
 - **Hot reload backend** — `nodemon` is in `server/package.json` devDeps but not used. Wire `npm run dev` in server/package.json to `nodemon index.js`.
 
 For full review trail of prior work: `docs/superpowers/plans/` has each implementation plan with rationale, and `git log --oneline c3f568f3..HEAD` shows the resulting commits.
+
+For forward-looking work (planned but not done yet), see [`../ROADMAP.md`](./ROADMAP.md).
+
+For security policy + vulnerability disclosure, see [`../SECURITY.md`](./SECURITY.md). Never open a public GitHub issue for a security bug.

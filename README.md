@@ -518,13 +518,20 @@ Next sync fails with `INVALID_ACCESS_TOKEN`. The backend deletes the `plaid_item
 
 ---
 
+## License + security
+
+- **License:** MIT — see [`LICENSE`](./LICENSE).
+- **Security policy:** see [`SECURITY.md`](./SECURITY.md) for the threat model, supported versions, and how to report vulnerabilities. **Do NOT open a public GitHub issue for security bugs.**
+- **Self-hosted only:** this app is single-user-per-deployment by design. Don't run it as a multi-tenant SaaS — the security model assumes one operator per instance.
+
 ## Where to go next
 
-- **Maintainer / developer guide:** see [`DEVELOPMENT.md`](./DEVELOPMENT.md).
-- **Plaid setup deep-dive:** see [`docs/setup/PLAID_SETUP.md`](./docs/setup/PLAID_SETUP.md).
-- **Google OAuth setup:** see [`docs/setup/GOOGLE_OAUTH_SETUP.md`](./docs/setup/GOOGLE_OAUTH_SETUP.md).
-- **All docs index:** [`docs/README.md`](./docs/README.md).
-- **Issue tracker:** GitHub Issues.
-- **Plaid sandbox docs:** [plaid.com/docs/sandbox](https://plaid.com/docs/sandbox/).
+- **Maintainer / developer guide:** [`DEVELOPMENT.md`](./DEVELOPMENT.md)
+- **Forward-looking work:** [`ROADMAP.md`](./ROADMAP.md)
+- **Plaid setup deep-dive:** [`docs/setup/PLAID_SETUP.md`](./docs/setup/PLAID_SETUP.md)
+- **Google OAuth setup:** [`docs/setup/GOOGLE_OAUTH_SETUP.md`](./docs/setup/GOOGLE_OAUTH_SETUP.md)
+- **All docs index:** [`docs/README.md`](./docs/README.md)
+- **Issue tracker:** GitHub Issues
+- **Plaid sandbox docs:** [plaid.com/docs/sandbox](https://plaid.com/docs/sandbox/)
 
 If something doesn't fit any heading above, open an issue with the `X-Request-ID` from the response body — the server logs reference it.

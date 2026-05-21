@@ -6,6 +6,9 @@ Project documentation index.
 
 - [`../README.md`](../README.md) — user-facing runbook (setup + day-to-day operation)
 - [`../DEVELOPMENT.md`](../DEVELOPMENT.md) — maintainer + contributor guide
+- [`../ROADMAP.md`](../ROADMAP.md) — planned but not-yet-done work
+- [`../SECURITY.md`](../SECURITY.md) — threat model + vulnerability disclosure
+- [`../LICENSE`](../LICENSE) — MIT
 
 ## Setup deep-dives
 
